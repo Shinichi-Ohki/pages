@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シンプル計算機</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.20/babel.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.5;
+            color: #333;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #4f46e5;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+        button:hover {
+            background-color: #4338ca;
+        }
+        .results {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .history-item {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            border: 1px solid #eee;
+        }
+        .history-container {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        .result-value {
+            font-weight: bold;
+        }
+        .svg-container {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #eee;
+            border-radius: 4px;
+        }
+        .svg-caption {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 16px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const Calculator = () => {
+            const [a, setA] = React.useState(0);
+            const [b, setB] = React.useState(0);
+            const [result1, setResult1] = React.useState(0);
+            const [result2, setResult2] = React.useState(0);
+            const [history, setHistory] = React.useState([]);
+            const [hasCalculated, setHasCalculated] = React.useState(false);
+
+            const calculate = () => {
+                const numA = parseFloat(a);
+                const numB = parseFloat(b);
+                
+                if (!isNaN(numA) && !isNaN(numB)) {
+                    // 小数点以下5桁目で四捨五入
+                    const calc1 = Math.round(((numA - numB) / 2) * 10000) / 10000;
+                    const calc2 = Math.round((numB / 2 + (numA - numB) / 4) * 10000) / 10000;
+                    
+                    setResult1(calc1);
+                    setResult2(calc2);
+                    setHasCalculated(true);
+                    
+                    // 履歴に追加
+                    const newEntry = {
+                        id: Date.now(),
+                        a: numA,
+                        b: numB,
+                        result1: calc1,
+                        result2: calc2
+                    };
+                    
+                    setHistory(prevHistory => [newEntry, ...prevHistory]);
+                }
+            };
+
+            return (
+                <div className="container">
+                    <h1>シンプル計算機</h1>
+                    
+                    <div className="svg-container">
+                        <svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            viewBox="0 0 300 180" 
+                            width="100%" 
+                            height="auto"
+                        >
+                            <rect x="50" y="50" width="60" height="60" stroke="black" strokeWidth="2" fill="none"/>
+                            <rect x="190" y="50" width="60" height="60" stroke="black" strokeWidth="2" fill="none"/>
+                            <line x1="150" y1="43" x2="150" y2="120" stroke="black" strokeWidth="0.8" strokeDasharray="5,3"/>
+                            <line x1="80" y1="43" x2="80" y2="120" stroke="black" strokeWidth="0.8" strokeDasharray="5,3"/>
+                            <line x1="110" y1="35" x2="190" y2="35" stroke="black" strokeWidth="1"/>
+                            <polyline points="110,35 120,30 120,40 110,35" fill="black"/>
+                            <polyline points="190,35 180,30 180,40 190,35" fill="black"/>
+                            <line x1="110" y1="35" x2="110" y2="50" stroke="black" strokeWidth="0.8"/>
+                            <line x1="190" y1="35" x2="190" y2="50" stroke="black" strokeWidth="0.8"/>
+                            <text x="150" y="30" textAnchor="middle" fontFamily="Arial" fontSize="12">B</text>
+                            <line x1="50" y1="15" x2="250" y2="15" stroke="black" strokeWidth="1"/>
+                            <polyline points="50,15 60,10 60,20 50,15" fill="black"/>
+                            <polyline points="250,15 240,10 240,20 250,15" fill="black"/>
+                            <line x1="50" y1="50" x2="50" y2="15" stroke="black" strokeWidth="0.8"/>
+                            <line x1="250" y1="50" x2="250" y2="15" stroke="black" strokeWidth="0.8"/>
+                            <text x="150" y="10" textAnchor="middle" fontFamily="Arial" fontSize="12">A</text>
+                            <line x1="190" y1="145" x2="250" y2="145" stroke="black" strokeWidth="1"/>
+                            <polyline points="190,145 200,140 200,150 190,145" fill="black"/>
+                            <polyline points="250,145 240,140 240,150 250,145" fill="black"/>
+                            <line x1="190" y1="110" x2="190" y2="145" stroke="black" strokeWidth="0.8"/>
+                            <line x1="250" y1="110" x2="250" y2="145" stroke="black" strokeWidth="0.8"/>
+                            <text x="220" y="140" textAnchor="middle" fontFamily="Arial" fontSize="12">D</text>
+                            <line x1="80" y1="145" x2="150" y2="145" stroke="black" strokeWidth="1"/>
+                            <polyline points="80,145 90,140 90,150 80,145" fill="black"/>
+                            <polyline points="150,145 140,140 140,150 150,145" fill="black"/>
+                            <line x1="80" y1="110" x2="80" y2="145" stroke="black" strokeWidth="0.8"/>
+                            <line x1="150" y1="110" x2="150" y2="145" stroke="black" strokeWidth="0.8"/>
+                            <text x="115" y="140" textAnchor="middle" fontFamily="Arial" fontSize="12">C</text>
+                        </svg>
+                        <div className="svg-caption">
+                            AとBからCとDを計算します<br/>計算結果は下に残ります(ページを閉じると消えます)
+                        </div>
+                    </div>
+                    
+                    <div className="input-group">
+                        <label htmlFor="valueA">数値 A:</label>
+                        <input
+                            id="valueA"
+                            type="number"
+                            value={a}
+                            onChange={(e) => setA(e.target.value)}
+                        />
+                    </div>
+                    
+                    <div className="input-group">
+                        <label htmlFor="valueB">数値 B:</label>
+                        <input
+                            id="valueB"
+                            type="number"
+                            value={b}
+                            onChange={(e) => setB(e.target.value)}
+                        />
+                    </div>
+                    
+                    <button onClick={calculate}>計算する</button>
+                    
+                    {hasCalculated && (
+                        <div className="results">
+                            <h2>計算結果</h2>
+                            <p>
+                                <span>C: (A-B)/2 = </span>
+                                <span className="result-value">{result1.toFixed(4)}</span>
+                            </p>
+                            <p>
+                                <span>D: B/2+(A-B)/4 = </span>
+                                <span className="result-value">{result2.toFixed(4)}</span>
+                            </p>
+                        </div>
+                    )}
+                    
+                    {history.length > 0 && (
+                        <div>
+                            <h2>計算履歴</h2>
+                            <div className="history-container">
+                                {history.map((entry) => (
+                                    <div key={entry.id} className="history-item">
+                                        <p>入力: A = {entry.a}, B = {entry.b}</p>
+                                        <p>
+                                            <span>C: (A-B)/2 = </span>
+                                            <span className="result-value">{entry.result1.toFixed(4)}</span>
+                                        </p>
+                                        <p>
+                                            <span>D: B/2+(A-B)/4 = </span>
+                                            <span className="result-value">{entry.result2.toFixed(4)}</span>
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // renderメソッドを使用するための修正
+        const rootElement = document.getElementById('root');
+        const root = ReactDOM.createRoot ? ReactDOM.createRoot(rootElement) : null;
+        
+        if (root) {
+            // React 18の場合
+            root.render(<Calculator />);
+        } else {
+            // 旧バージョンのReactの場合
+            ReactDOM.render(<Calculator />, rootElement);
+        }
+    </script>
+</body>
+</html>
