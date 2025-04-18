@@ -7,7 +7,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.20/babel.min.js"></script>
-    <style>
+            <style>
+        html {
+            scroll-behavior: smooth;
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             line-height: 1.5;
@@ -108,6 +111,24 @@
             margin: 30px 0;
             color: #666;
         }
+        /* 強化された「ページトップに戻る」リンク用スタイル */
+        .back-to-top {
+            display: block !important;
+            text-align: center !important;
+            padding: 15px !important;
+            margin: 30px auto !important; /* 自動マージンで中央揃え */
+            max-width: 200px; /* 幅を制限 */
+            background-color: #f0f0f0 !important;
+            color: #4f46e5 !important;
+            font-weight: bold !important;
+            border-radius: 5px !important;
+            text-decoration: none !important;
+            transition: background-color 0.3s !important;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* 少し影をつけて目立たせる */
+        }
+        .back-to-top:hover {
+            background-color: #e0e0e0 !important;
+        }
     </style>
 </head>
 <body>
@@ -129,6 +150,14 @@
             const [resultD, setResultD] = React.useState(0);
             const [newHistory, setNewHistory] = React.useState([]);
             const [hasNewCalculated, setHasNewCalculated] = React.useState(false);
+
+            // 追加した計算機の状態
+            const [thirdA, setThirdA] = React.useState(0);
+            const [thirdB, setThirdB] = React.useState(0);
+            const [resultMinus, setResultMinus] = React.useState(0);
+            const [resultPlus, setResultPlus] = React.useState(0);
+            const [thirdHistory, setThirdHistory] = React.useState([]);
+            const [hasThirdCalculated, setHasThirdCalculated] = React.useState(false);
 
             // 元の計算機の計算ロジック
             const calculate = () => {
@@ -181,12 +210,74 @@
                 }
             };
 
+            // 追加した計算機の計算ロジック
+            const calculateThird = () => {
+                const numA = parseFloat(thirdA);
+                const numB = parseFloat(thirdB);
+                
+                if (!isNaN(numA) && !isNaN(numB)) {
+                    // A-B と A+B の計算、小数点以下5桁目で四捨五入
+                    const calcMinus = Math.round((numA - numB) * 10000) / 10000;
+                    const calcPlus = Math.round((numA + numB) * 10000) / 10000;
+                    
+                    setResultMinus(calcMinus);
+                    setResultPlus(calcPlus);
+                    setHasThirdCalculated(true);
+                    
+                    // 履歴に追加
+                    const newEntry = {
+                        id: Date.now(),
+                        a: numA,
+                        b: numB,
+                        resultMinus: calcMinus,
+                        resultPlus: calcPlus
+                    };
+                    
+                    setThirdHistory(prevHistory => [newEntry, ...prevHistory]);
+                }
+            };
+
             return (
                 <div className="container">
-                    <h1>シンプル計算機</h1>
+                    <h1 id="top">シンプル計算機</h1>
+                    
+                    {/* ナビゲーションリンク */}
+                    <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-around', 
+                        margin: '20px 0', 
+                        padding: '10px',
+                        backgroundColor: '#f0f0f0',
+                        borderRadius: '5px'
+                    }}>
+                        <a href="#calc1" style={{ 
+                            textDecoration: 'none', 
+                            color: '#4f46e5',
+                            fontWeight: 'bold',
+                            padding: '5px 10px',
+                            borderRadius: '4px',
+                            transition: 'background-color 0.3s'
+                        }}>計算機1: AとBからCとD</a>
+                        <a href="#calc2" style={{ 
+                            textDecoration: 'none', 
+                            color: '#4f46e5',
+                            fontWeight: 'bold',
+                            padding: '5px 10px',
+                            borderRadius: '4px',
+                            transition: 'background-color 0.3s'
+                        }}>計算機2: AとCからD</a>
+                        <a href="#calc3" style={{ 
+                            textDecoration: 'none', 
+                            color: '#4f46e5',
+                            fontWeight: 'bold',
+                            padding: '5px 10px',
+                            borderRadius: '4px',
+                            transition: 'background-color 0.3s'
+                        }}>計算機3: AとBの和と差</a>
+                    </div>
                     
                     {/* 最初の計算機 */}
-                    <div className="calculator-section">
+                    <div id="calc1" className="calculator-section">
                         <h2>計算機 1: AとBからCとDを計算</h2>
                         <div className="svg-container">
                             <svg 
@@ -287,13 +378,12 @@
                                 </div>
                             </div>
                         )}
-                    </div>
-                    
-                    {/* 区切り線 */}
-                    <div className="separator">＊ ＊ ＊</div>
+                        {/* 「ページトップに戻る」リンク */}
+                        <a href="#top" className="back-to-top">ページトップに戻る</a>
+                    </div>                    
                     
                     {/* 新しい計算機 */}
-                    <div className="calculator-section">
+                    <div id="calc2" className="calculator-section">
                         <h2>計算機 2: AとCからDを計算</h2>
                         <div className="svg-container">
                             <svg 
@@ -381,6 +471,118 @@
                                 </div>
                             </div>
                         )}
+                        {/* 「ページトップに戻る」リンク */}
+                        <a href="#top" className="back-to-top">ページトップに戻る</a>
+                    </div>
+                    
+                    {/* 3つ目の計算機 */}
+                    <div id="calc3" className="calculator-section">
+                        <h2>計算機 3: AとBから和と差を計算</h2>
+                        <div className="svg-container">
+                            <svg 
+                                xmlns="http://www.w3.org/2000/svg" 
+                                viewBox="0 0 500 200" 
+                                width="100%" 
+                                height="auto"
+                            >
+                                {/* 数直線 */}
+                                <line x1="50" y1="100" x2="450" y2="100" stroke="black" strokeWidth="2"/>
+                                {/* 目盛り */}
+                                <line x1="100" y1="95" x2="100" y2="105" stroke="black" strokeWidth="2"/>
+                                <line x1="200" y1="95" x2="200" y2="105" stroke="black" strokeWidth="2"/>
+                                <line x1="300" y1="95" x2="300" y2="105" stroke="black" strokeWidth="2"/>
+                                <line x1="400" y1="95" x2="400" y2="105" stroke="black" strokeWidth="2"/>
+                                {/* 点A */}
+                                <circle cx="250" cy="100" r="5" fill="black"/>
+                                <text x="250" y="85" textAnchor="middle" fontFamily="Arial" fontSize="16">A</text>
+                                {/* 点A-B */}
+                                <circle cx="150" cy="100" r="5" fill="black"/>
+                                <text x="150" y="85" textAnchor="middle" fontFamily="Arial" fontSize="16">A-B</text>
+                                {/* 点A+B */}
+                                <circle cx="350" cy="100" r="5" fill="black"/>
+                                <text x="350" y="85" textAnchor="middle" fontFamily="Arial" fontSize="16">A+B</text>
+                                {/* 垂線 A-B (点線) */}
+                                <line x1="150" y1="100" x2="150" y2="160" stroke="black" strokeWidth="1" strokeDasharray="4,3"/>
+                                {/* 垂線 A (点線) */}
+                                <line x1="250" y1="100" x2="250" y2="160" stroke="black" strokeWidth="1" strokeDasharray="4,3"/>
+                                {/* 垂線 A+B (点線) */}
+                                <line x1="350" y1="100" x2="350" y2="160" stroke="black" strokeWidth="1" strokeDasharray="4,3"/>
+                                {/* 寸法線 A から A-B（両端矢印付き） */}
+                                <line x1="250" y1="140" x2="150" y2="140" stroke="black" strokeWidth="1"/>
+                                <polygon points="150,140 160,136 160,144" fill="black"/>
+                                <polygon points="250,140 240,136 240,144" fill="black"/>
+                                <text x="200" y="130" textAnchor="middle" fontFamily="Arial" fontSize="14">-B</text>
+                                {/* 寸法線 A から A+B（両端矢印付き） */}
+                                <line x1="250" y1="140" x2="350" y2="140" stroke="black" strokeWidth="1"/>
+                                <polygon points="350,140 340,136 340,144" fill="black"/>
+                                <polygon points="250,140 260,136 260,144" fill="black"/>
+                                <text x="300" y="130" textAnchor="middle" fontFamily="Arial" fontSize="14">+B</text>
+                            </svg>
+                            <div className="svg-caption">
+                                AとBから和と差を計算します<br/>
+                                引き算: A-B<br/>
+                                足し算: A+B
+                            </div>
+                        </div>
+                        
+                        <div className="input-group">
+                            <label htmlFor="thirdValueA">数値 A:</label>
+                            <input
+                                id="thirdValueA"
+                                type="number"
+                                value={thirdA}
+                                onChange={(e) => setThirdA(e.target.value)}
+                            />
+                        </div>
+                        
+                        <div className="input-group">
+                            <label htmlFor="thirdValueB">数値 B:</label>
+                            <input
+                                id="thirdValueB"
+                                type="number"
+                                value={thirdB}
+                                onChange={(e) => setThirdB(e.target.value)}
+                            />
+                        </div>
+                        
+                        <button onClick={calculateThird}>計算する</button>
+                        
+                        {hasThirdCalculated && (
+                            <div className="results">
+                                <h2>計算結果</h2>
+                                <p>
+                                    <span>引き算: A-B = </span>
+                                    <span className="result-value">{resultMinus.toFixed(4)}</span>
+                                </p>
+                                <p>
+                                    <span>足し算: A+B = </span>
+                                    <span className="result-value">{resultPlus.toFixed(4)}</span>
+                                </p>
+                            </div>
+                        )}
+                        
+                        {thirdHistory.length > 0 && (
+                            <div>
+                                <h2>計算履歴</h2>
+                                <div className="history-container">
+                                    {thirdHistory.map((entry) => (
+                                        <div key={entry.id} className="history-item">
+                                            <p>入力: A = {entry.a}, B = {entry.b}</p>
+                                            <p>
+                                                <span>引き算: A-B = </span>
+                                                <span className="result-value">{entry.resultMinus.toFixed(4)}</span>
+                                            </p>
+                                            <p>
+                                                <span>足し算: A+B = </span>
+                                                <span className="result-value">{entry.resultPlus.toFixed(4)}</span>
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {/* 「ページトップに戻る」リンク */}
+                        <a href="#top" className="back-to-top">ページトップに戻る</a>
                     </div>
                 </div>
             );
