@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>パスワード変換ツール</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 80px;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .output {
+            margin-top: 20px;
+        }
+
+        /* 変換された文字用のスタイル */
+        .result-container {
+            margin-top: 15px;
+            font-family: monospace;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            min-height: 80px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        
+        .changed-char {
+            color: red;
+            font-weight: bold;
+        }
+        
+        .description {
+            background-color: #f0f8ff;
+            border-left: 4px solid #007bff;
+            padding: 10px 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        
+        .description ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .description li {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>パスワード変換ツール</h2>
+        <div class="description">
+            <ul>
+                <li>パスワードに使える記号が違ってて変換がめんどうな人向けのアプリです</li>
+                <li>保存はしません。どこかに送信もしません</li>
+                <li>コピーボタンを押すとコピーできます</li>
+                <li>https://shinichi-ohki.github.io/pages/passwd_conv.html にて公開中</li>
+            </ul>
+        </div>
+        <textarea id="input-password" placeholder="変換前のパスワードを入力"></textarea>
+        <textarea id="input-symbols" placeholder="使用可能な記号を入力（例: !@#$%&*()）"></textarea>
+        <button onclick="process()">変換</button>
+        <div class="output">
+            <div>
+                <p>入力文字列:</p>
+                <div id="input-display" class="result-container"></div>
+            </div>
+            <div>
+                <p>出力文字列:</p>
+                <div id="output-display" class="result-container"></div>
+            </div>
+            <textarea id="output-password" readonly style="display: none;"></textarea>
+            <button onclick="copyToClipboard()">コピー</button>
+        </div>
+    </div>
+
+    <script>
+        function replacePassword(input, allowedSymbols) {
+            let result = '';
+            let changedPositions = [];
+            
+            for (let i = 0; i < input.length; i++) {
+                let char = input[i];
+                if (allowedSymbols.includes(char)) {
+                    result += char;
+                } else {
+                    // アルファベットと数字はそのまま、記号のみを置換
+                    if (/[a-zA-Z0-9]/.test(char)) {
+                        result += char;
+                    } else {
+                        let randomChar = allowedSymbols[Math.floor(Math.random() * allowedSymbols.length)];
+                        result += randomChar;
+                        changedPositions.push(i); // 変更された位置を記録
+                    }
+                }
+            }
+            return { result, changedPositions };
+        }
+
+        function process() {
+            let input = document.getElementById('input-password').value;
+            let symbols = document.getElementById('input-symbols').value;
+
+            if (!symbols) {
+                alert("使用可能な記号を入力してください");
+                return;
+            }
+
+            let { result, changedPositions } = replacePassword(input, symbols);
+            document.getElementById('output-password').value = result;
+            
+            // 入力と出力のテキストを表示（変更された文字を赤く表示）
+            displayWithHighlight('input-display', input, changedPositions);
+            displayWithHighlight('output-display', result, changedPositions);
+        }
+        
+        function displayWithHighlight(elementId, text, highlightPositions) {
+            const container = document.getElementById(elementId);
+            container.innerHTML = '';
+            
+            for (let i = 0; i < text.length; i++) {
+                const span = document.createElement('span');
+                span.textContent = text[i];
+                
+                if (highlightPositions.includes(i)) {
+                    span.className = 'changed-char';
+                }
+                
+                container.appendChild(span);
+            }
+        }
+
+        function copyToClipboard() {
+            let output = document.getElementById('output-password');
+            navigator.clipboard.writeText(output.value);
+            alert("コピーしました");
+        }
+    </script>
+</body>
+</html>
