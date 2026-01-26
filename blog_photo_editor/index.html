@@ -1,0 +1,3190 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ブログ写真エディター</title>
+    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+    <script src="https://unpkg.com/piexifjs@1.0.6/piexif.js"></script>
+    <style>
+        :root {
+            --primary-color: #007bff;
+            --secondary-color: #6c757d;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --info-color: #17a2b8;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+            --bg-color: #ffffff;
+            --text-color: #333333;
+            --border-color: #dee2e6;
+            --shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #1a1a1a;
+                --text-color: #ffffff;
+                --border-color: #333333;
+                --light-color: #2d2d2d;
+                --dark-color: #f8f9fa;
+                --shadow: 0 2px 4px rgba(255,255,255,0.1);
+            }
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            display: flex;
+            gap: 20px;
+        }
+
+        .main-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .thumbnail-panel {
+            width: 200px;
+            height: calc(100vh - 40px);
+            position: sticky;
+            top: 20px;
+            background: var(--light-color);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            display: none;
+            flex-direction: column;
+        }
+
+        .thumbnail-panel.visible {
+            display: flex;
+        }
+
+        .thumbnail-panel-header {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            z-index: 10;
+            padding: 0;
+            border: none;
+            background: none;
+        }
+
+        .thumbnail-panel-toggle {
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            padding: 6px 8px;
+            border-radius: 6px;
+            color: var(--text-color);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            line-height: 1;
+            box-shadow: var(--shadow);
+        }
+
+        .thumbnail-panel-toggle:hover {
+            background: var(--light-color);
+            transform: scale(1.05);
+        }
+
+        .thumbnail-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding-top: 40px;
+        }
+
+        .thumbnail-item {
+            width: 100%;
+            min-height: 80px;
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            position: relative;
+        }
+
+        .thumbnail-item:hover {
+            transform: scale(1.02);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .thumbnail-item.active {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 1px var(--primary-color);
+        }
+
+        .thumbnail-item.rejected {
+            opacity: 0.4;
+            filter: grayscale(100%);
+        }
+
+        .thumbnail-image {
+            width: 100%;
+            max-width: 200px;
+            height: auto;
+            display: block;
+            object-fit: contain;
+            margin: 0 auto;
+            min-height: 60px;
+            max-height: 120px;
+        }
+
+        .thumbnail-index {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .thumbnail-toggle-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1001;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+            font-size: 1.2rem;
+        }
+
+        .thumbnail-toggle-btn:hover {
+            background: #0056b3;
+            transform: translateY(-2px);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header-text {
+            flex: 1;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            color: var(--secondary-color);
+        }
+
+        .help-btn {
+            font-size: 0.9rem;
+            padding: 8px 16px;
+            flex-shrink: 0;
+            margin-left: 20px;
+        }
+
+        .upload-area {
+            border: 3px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 60px 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            margin-bottom: 30px;
+            background: var(--light-color);
+        }
+
+        .upload-area.dragover {
+            border-color: var(--primary-color);
+            background: rgba(0, 123, 255, 0.1);
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            color: var(--secondary-color);
+        }
+
+        .upload-text {
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            color: var(--text-color);
+        }
+
+        .upload-button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+        }
+
+        .upload-button:hover {
+            background: #0056b3;
+            transform: translateY(-2px);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .photos-container {
+            display: none;
+        }
+
+        .photo-item {
+            background: var(--light-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+        }
+
+        .photo-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .photo-item.rejected {
+            opacity: 0.5;
+            filter: grayscale(100%);
+        }
+
+        .photo-item.selected {
+            border: 4px dashed #333333;
+            background-color: #f8f9fa;
+        }
+
+        .photo-preview {
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .photo-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .exif-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--light-color);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            margin-top: 8px;
+        }
+
+        .exif-camera,
+        .exif-date {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--text-color);
+        }
+
+        .exif-camera {
+            font-weight: 500;
+        }
+
+        .exif-date {
+            opacity: 0.8;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: var(--secondary-color);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            opacity: 0.9;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+        }
+
+        .btn-success {
+            background: var(--success-color);
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .checkbox-container input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .checkbox-container label {
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        .crop-container {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 20px;
+            user-select: none;
+        }
+
+        .crop-canvas {
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        .crop-canvas.cropping {
+            cursor: move;
+        }
+
+        .crop-overlay {
+            position: absolute;
+            border: 2px solid var(--primary-color);
+            background: rgba(0, 123, 255, 0.2);
+            cursor: move;
+            display: none;
+        }
+
+        .crop-mask {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.5);
+            pointer-events: none;
+            display: none;
+        }
+
+        .crop-mask.top {
+            top: 0;
+            left: 0;
+            right: 0;
+        }
+
+        .crop-mask.bottom {
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+
+        .crop-mask.left {
+            left: 0;
+        }
+
+        .crop-mask.right {
+            right: 0;
+        }
+
+        .crop-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .crop-grid-line {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        .crop-grid-line.vertical-1 {
+            width: 1px;
+            height: 100%;
+            left: 33.33%;
+        }
+
+        .crop-grid-line.vertical-2 {
+            width: 1px;
+            height: 100%;
+            left: 66.66%;
+        }
+
+        .crop-grid-line.horizontal-1 {
+            height: 1px;
+            width: 100%;
+            top: 33.33%;
+        }
+
+        .crop-grid-line.horizontal-2 {
+            height: 1px;
+            width: 100%;
+            top: 66.66%;
+        }
+
+        .crop-handle {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: var(--primary-color);
+            border: 2px solid white;
+            border-radius: 50%;
+            cursor: nw-resize;
+            touch-action: none;
+        }
+
+        .crop-handle.nw { top: -6px; left: -6px; cursor: nw-resize; }
+        .crop-handle.ne { top: -6px; right: -6px; cursor: ne-resize; }
+        .crop-handle.sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+        .crop-handle.se { bottom: -6px; right: -6px; cursor: se-resize; }
+        .crop-handle.n { top: -6px; left: 50%; transform: translateX(-50%); cursor: n-resize; }
+        .crop-handle.s { bottom: -6px; left: 50%; transform: translateX(-50%); cursor: s-resize; }
+        .crop-handle.w { top: 50%; left: -6px; transform: translateY(-50%); cursor: w-resize; }
+        .crop-handle.e { top: 50%; right: -6px; transform: translateY(-50%); cursor: e-resize; }
+
+        .crop-controls {
+            margin: 10px 0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .aspect-ratio-buttons {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .aspect-btn {
+            padding: 4px 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-color);
+            color: var(--text-color);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.3s ease;
+        }
+
+        .aspect-btn:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .aspect-btn.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .batch-controls {
+            background: var(--light-color);
+            padding: 30px;
+            border-radius: 12px;
+            margin: 30px 0;
+            box-shadow: var(--shadow);
+        }
+
+        .batch-controls h3 {
+            margin-bottom: 20px;
+            color: var(--primary-color);
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .control-group input[type="number"],
+        .control-group input[type="range"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        .range-value {
+            float: right;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: var(--border-color);
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary-color);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--success-color);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 6px;
+            box-shadow: var(--shadow);
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.error {
+            background: var(--danger-color);
+        }
+
+        .toast.warning {
+            background: var(--warning-color);
+        }
+
+        .toast.info {
+            background: var(--info-color);
+        }
+
+        /* モーダル */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: #ffffff;
+            color: #333333;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80%;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: #2563eb;
+            font-size: 1.5rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: #666666;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .modal-close:hover {
+            background: #f0f0f0;
+        }
+
+        .modal-body {
+            padding: 24px;
+            overflow-y: auto;
+            max-height: 400px;
+        }
+
+        .shortcuts-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        .shortcut-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .shortcut-item:last-child {
+            border-bottom: none;
+        }
+
+        .shortcut-item kbd {
+            background: #f5f5f5;
+            border: 1px solid #cccccc;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            margin: 0 2px;
+            color: #333333;
+        }
+
+        .shortcut-item span {
+            color: #333333;
+            flex: 1;
+            margin-left: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .header-content {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .help-btn {
+                margin-left: 0;
+                align-self: center;
+            }
+
+            .modal-content {
+                margin: 20px;
+                width: calc(100% - 40px);
+            }
+
+            .shortcut-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+
+            .shortcut-item span {
+                margin-left: 0;
+            }
+
+            .upload-area {
+                padding: 40px 15px;
+            }
+
+            .photo-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .btn {
+                padding: 12px 20px;
+                font-size: 1rem;
+            }
+
+            .batch-controls {
+                padding: 20px;
+            }
+
+            .container {
+                flex-direction: column;
+            }
+
+            .thumbnail-panel {
+                width: 100%;
+                height: 200px;
+                position: relative;
+                top: 0;
+                order: -1;
+                border-radius: 12px 12px 0 0;
+            }
+
+            .thumbnail-toggle-btn {
+                top: 10px;
+                right: 10px;
+                padding: 8px;
+                font-size: 1rem;
+            }
+
+            .thumbnail-list {
+                flex-direction: row;
+                overflow-x: auto;
+                overflow-y: hidden;
+                padding: 10px;
+            }
+
+            .thumbnail-item {
+                min-width: 80px;
+                flex-shrink: 0;
+                margin-right: 8px;
+            }
+
+            .thumbnail-item:last-child {
+                margin-right: 0;
+            }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .manual-adjustments {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 8px;
+        }
+
+        .manual-adjustments h4 {
+            margin-bottom: 15px;
+            color: var(--secondary-color);
+        }
+
+        .coming-soon {
+            font-size: 0.8rem;
+            color: var(--warning-color);
+            background: rgba(255, 193, 7, 0.1);
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-left: 10px;
+        }
+
+        .manual-slider {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .manual-slider:disabled {
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body>
+    <!-- サムネイルパネル表示切り替えボタン -->
+    <button class="thumbnail-toggle-btn" id="thumbnail-toggle-btn" onclick="photoEditor.toggleThumbnailPanel()">
+        📋
+    </button>
+
+    <div class="container">
+        <div class="main-content">
+            <div class="header">
+                <div class="header-content">
+                    <div class="header-text">
+                        <h1>📸 ブログ写真エディター</h1>
+                        <p>写真を効率的に編集・リサイズして、ブログ投稿の準備をしましょう</p>
+                    </div>
+                    <button class="btn btn-secondary help-btn" id="help-btn" onclick="photoEditor.showKeyboardHelp()">
+                        ❓ ヘルプ
+                    </button>
+                </div>
+            </div>
+
+        <div id="upload-section">
+            <div class="upload-area" id="upload-area">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">写真をここにドラッグ&ドロップするか、下のボタンでファイルを選択してください</div>
+                <div class="upload-text" style="font-size: 0.9rem; color: var(--secondary-color); margin-top: 10px;">
+                    対応フォーマット: JPEG, PNG, WebP, HEIF/HEIC（最大255枚）
+                </div>
+                <button class="upload-button" onclick="document.getElementById('file-input').click()">
+                    📁 ファイルを選択
+                </button>
+                <input type="file" id="file-input" class="file-input" multiple accept="image/*">
+            </div>
+        </div>
+
+        <div id="photos-section" class="photos-container">
+            <div class="batch-controls">
+                <h3>⚙️ 一括処理設定</h3>
+                <div class="control-group">
+                    <label>長辺サイズ (px):</label>
+                    <input type="number" id="resize-width" value="1000" min="100" max="4000">
+                </div>
+                <div class="control-group">
+                    <label>
+                        JPEG品質: <span class="range-value" id="quality-value">85%</span>
+                    </label>
+                    <input type="range" id="quality-slider" min="10" max="100" value="85">
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-secondary" id="undo-btn" onclick="photoEditor.undo()" disabled>
+                        ↶ アンドゥ (<span id="undo-count">0</span>)
+                    </button>
+                    <button class="btn btn-success" id="batch-process">
+                        💾 採用写真を一括保存
+                    </button>
+                </div>
+            </div>
+
+            <div id="photos-list"></div>
+        </div>
+
+        <!-- キーボードショートカットヘルプモーダル -->
+        <div id="keyboard-help-modal" class="modal-overlay" style="display: none;" onclick="photoEditor.hideKeyboardHelp()">
+            <div class="modal-content" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                    <h2>⌨️ キーボードショートカット</h2>
+                    <button class="modal-close" onclick="photoEditor.hideKeyboardHelp()">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="shortcuts-grid">
+                        <div class="shortcut-item">
+                            <kbd>Ctrl</kbd> + <kbd>Z</kbd>
+                            <span>操作を取り消し（アンドゥ）</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>R</kbd>
+                            <span>写真を右に90度回転</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>L</kbd>
+                            <span>写真を左に90度回転</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>D</kbd>
+                            <span>選択中の写真を不採用にする</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>S</kbd>
+                            <span>選択中の写真を採用する</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>Space</kbd>
+                            <span>次の写真を選択</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>Esc</kbd>
+                            <span>このヘルプを閉じる</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+            <div class="progress-bar" id="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+        </div>
+
+        <!-- サムネイルナビゲーションパネル -->
+        <div class="thumbnail-panel" id="thumbnail-panel">
+            <div class="thumbnail-panel-header">
+                <button class="thumbnail-panel-toggle" onclick="photoEditor.toggleThumbnailPanel()">✕</button>
+            </div>
+            <div class="thumbnail-list" id="thumbnail-list">
+                <!-- サムネイルはJavaScriptで動的に生成 -->
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        class PhotoEditor {
+            constructor() {
+                this.photos = [];
+                this.currentPhotoIndex = 0;
+                this.undoStack = [];
+                this.maxUndoSteps = 5; // 大きな画像でも実用的な値
+                this.isProcessing = false;
+                this.thumbnailPanelVisible = false;
+                this.thumbnailObserver = null;
+                
+                this.initializeEventListeners();
+                this.initializeShortcuts();
+            }
+
+            initializeEventListeners() {
+                const uploadArea = document.getElementById('upload-area');
+                const fileInput = document.getElementById('file-input');
+                const qualitySlider = document.getElementById('quality-slider');
+                const batchProcessBtn = document.getElementById('batch-process');
+
+
+                // ドラッグ&ドロップ
+                if (uploadArea) {
+                    uploadArea.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        uploadArea.classList.add('dragover');
+                    });
+
+                    uploadArea.addEventListener('dragleave', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        uploadArea.classList.remove('dragover');
+                    });
+
+                    uploadArea.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        uploadArea.classList.remove('dragover');
+                        this.handleFiles(e.dataTransfer.files);
+                    });
+                }
+
+                // ファイル選択
+                if (fileInput) {
+                    fileInput.addEventListener('change', (e) => {
+                        this.handleFiles(e.target.files);
+                    });
+                }
+
+                // 品質スライダー
+                if (qualitySlider) {
+                    qualitySlider.addEventListener('input', (e) => {
+                        const qualityValue = document.getElementById('quality-value');
+                        if (qualityValue) {
+                            qualityValue.textContent = e.target.value + '%';
+                        }
+                    });
+                }
+
+                // 一括処理
+                if (batchProcessBtn) {
+                    batchProcessBtn.addEventListener('click', () => {
+                        this.batchProcess();
+                    });
+                }
+            }
+
+            initializeShortcuts() {
+                document.addEventListener('keydown', (e) => {
+                    // Ctrl+Z（アンドゥ）のみ修飾キー付きで処理
+                    if (e.ctrlKey && e.key === 'z' && !e.metaKey && !e.altKey && !e.shiftKey) {
+                        e.preventDefault();
+                        this.undo();
+                        return;
+                    }
+                    
+                    // 修飾キーが押されている場合はブラウザのデフォルト動作を優先
+                    if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) {
+                        return; // preventDefault() を呼ばずにブラウザに委ね
+                    }
+                    
+                    // 修飾キーなしの場合のみアプリのショートカットを処理
+                    if (e.key === 'r' || e.key === 'R') {
+                        e.preventDefault();
+                        this.rotateCurrentPhoto(90);
+                    } else if (e.key === 'l' || e.key === 'L') {
+                        e.preventDefault();
+                        this.rotateCurrentPhoto(-90);
+                    } else if (e.key === 'd' || e.key === 'D') {
+                        e.preventDefault();
+                        this.rejectCurrentPhoto();
+                    } else if (e.key === 's' || e.key === 'S') {
+                        e.preventDefault();
+                        this.approveCurrentPhoto();
+                    } else if (e.key === ' ') {
+                        e.preventDefault();
+                        this.selectNextPhoto();
+                    }
+                });
+                
+                // Escキーでモーダルを閉じる
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        this.hideKeyboardHelp();
+                    }
+                });
+            }
+
+            showKeyboardHelp() {
+                const modal = document.getElementById('keyboard-help-modal');
+                modal.style.display = 'flex';
+                document.body.style.overflow = 'hidden'; // スクロール防止
+            }
+
+            hideKeyboardHelp() {
+                const modal = document.getElementById('keyboard-help-modal');
+                modal.style.display = 'none';
+                document.body.style.overflow = 'auto'; // スクロール復活
+            }
+
+            async handleFiles(files) {
+                if (!files || files.length === 0) {
+                    return;
+                }
+                
+                this.showProgress(true);
+                this.showToast('写真を読み込み中...', 'info');
+
+                const validFiles = [];
+                for (let i = 0; i < Math.min(files.length, 255); i++) {
+                    const file = files[i];
+                    if (file.type.startsWith('image/')) {
+                        validFiles.push(file);
+                    }
+                }
+
+                if (validFiles.length === 0) {
+                    this.showToast('画像ファイルがありません', 'warning');
+                    this.showProgress(false);
+                    return;
+                }
+
+                let processedCount = 0;
+                for (const file of validFiles) {
+                    try {
+                        const photo = await this.processFile(file);
+                        this.photos.push(photo);
+                        processedCount++;
+                        this.updateProgress(processedCount / validFiles.length * 100);
+                    } catch (error) {
+                        this.showToast(`${file.name}の処理に失敗しました`, 'error');
+                    }
+                }
+
+                this.showProgress(false);
+                
+                if (processedCount > 0) {
+                    this.showPhotosList();
+                    this.showToast(`${processedCount}枚の写真を読み込みました`, 'success');
+                } else {
+                    this.showToast('写真の読み込みに失敗しました', 'error');
+                }
+            }
+
+            async processFile(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = async (e) => {
+                        try {
+                            let blob = file;
+                            
+                            // HEIF/HEIC変換
+                            if (file.type === 'image/heic' || file.type === 'image/heif' || 
+                                file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+                                if (typeof heic2any !== 'undefined') {
+                                    blob = await heic2any({
+                                        blob: file,
+                                        toType: 'image/jpeg',
+                                        quality: 0.9
+                                    });
+                                } else {
+                                    throw new Error('HEIF変換ライブラリが読み込まれていません');
+                                }
+                            }
+
+                            const img = new Image();
+                            img.onload = () => {
+                                const canvas = document.createElement('canvas');
+                                const ctx = canvas.getContext('2d');
+
+                                // 最大解像度チェック
+                                const maxSize = 4000;
+                                let { width, height } = img;
+
+                                if (width > maxSize || height > maxSize) {
+                                    const scale = Math.min(maxSize / width, maxSize / height);
+                                    width = Math.floor(width * scale);
+                                    height = Math.floor(height * scale);
+                                }
+
+                                canvas.width = width;
+                                canvas.height = height;
+                                ctx.drawImage(img, 0, 0, width, height);
+
+                                // EXIF読み取り処理
+                                if (typeof piexif !== 'undefined' && blob instanceof Blob) {
+                                    const exifReader = new FileReader();
+                                    exifReader.onload = (exifEvent) => {
+                                        try {
+                                            const exifObj = piexif.load(exifEvent.target.result);
+                                            const exifData = this.filterExifData(exifObj);
+                                            this.finalizePhoto(canvas, ctx, width, height, file, exifData, resolve);
+                                        } catch (parseError) {
+                                            // EXIFなしの場合は通常処理
+                                            this.finalizePhoto(canvas, ctx, width, height, file, null, resolve);
+                                        }
+                                    };
+                                    exifReader.onerror = () => {
+                                        this.finalizePhoto(canvas, ctx, width, height, file, null, resolve);
+                                    };
+                                    exifReader.readAsDataURL(blob);
+                                    return;
+                                }
+
+                                // EXIF読み取りができない場合は通常処理
+                                this.finalizePhoto(canvas, ctx, width, height, file, null, resolve);
+                            };
+                            
+                            img.onerror = () => reject(new Error('画像の読み込みに失敗しました'));
+                            
+                            if (blob instanceof Blob) {
+                                img.src = URL.createObjectURL(blob);
+                            } else {
+                                img.src = e.target.result;
+                            }
+                        } catch (error) {
+                            reject(error);
+                        }
+                    };
+                    
+                    reader.onerror = () => reject(new Error('ファイルの読み込みに失敗しました'));
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            finalizePhoto(canvas, ctx, width, height, file, exifData, resolve) {
+                const photo = {
+                    id: Date.now() + Math.random(),
+                    originalFile: file,
+                    canvas: canvas,
+                    originalImageData: ctx.getImageData(0, 0, width, height),
+                    currentImageData: ctx.getImageData(0, 0, width, height),
+                    width: width,
+                    height: height,
+                    rotation: 0,
+                    cropData: null,
+                    isApproved: true,
+                    autoLevelApplied: false,
+                    exifData: exifData,
+                    hasExif: exifData !== null
+                };
+                resolve(photo);
+            }
+
+            filterExifData(exifObj) {
+                const filtered = {
+                    '0th': {},
+                    'Exif': {},
+                    'GPS': {}
+                };
+
+                // 保持するIFD0タグ（タグ番号で直接指定）
+                const keepZeroth = {
+                    'Make': 271,
+                    'Model': 272,
+                    'Software': 305,
+                    'ImageDescription': 270,
+                    'Copyright': 33432,
+                    'Artist': 315,
+                    'DateTime': 306
+                };
+
+                // 保持するExifIFDタグ
+                const keepExif = {
+                    'DateTimeOriginal': 36867,
+                    'DateTimeDigitized': 36868,
+                    'UserComment': 37510,
+                    'LensModel': 42036,
+                    'FNumber': 33437,
+                    'ExposureTime': 33434,
+                    'ISOSpeedRatings': 34855,
+                    'FocalLength': 37386
+                };
+
+                // Orientationは削除（タグ番号274）
+                if (exifObj['0th'] && exifObj['0th'][274]) {
+                    delete exifObj['0th'][274];
+                }
+
+                // DateTimeを更新（編集日時）
+                const now = new Date();
+                const dateTimeStr = now.getFullYear() + ':' +
+                    String(now.getMonth() + 1).padStart(2, '0') + ':' +
+                    String(now.getDate()).padStart(2, '0') + ' ' +
+                    String(now.getHours()).padStart(2, '0') + ':' +
+                    String(now.getMinutes()).padStart(2, '0') + ':' +
+                    String(now.getSeconds()).padStart(2, '0');
+                if (exifObj['0th']) {
+                    exifObj['0th'][306] = dateTimeStr;
+                }
+
+                // Softwareを更新
+                if (exifObj['0th']) {
+                    exifObj['0th'][305] = 'Blog Photo Editor';
+                }
+
+                // フィルタリング処理
+                if (exifObj['0th']) {
+                    for (const [name, tagNum] of Object.entries(keepZeroth)) {
+                        if (exifObj['0th'][tagNum]) {
+                            filtered['0th'][tagNum] = exifObj['0th'][tagNum];
+                        }
+                    }
+                }
+
+                if (exifObj['Exif']) {
+                    for (const [name, tagNum] of Object.entries(keepExif)) {
+                        if (exifObj['Exif'][tagNum]) {
+                            filtered['Exif'][tagNum] = exifObj['Exif'][tagNum];
+                        }
+                    }
+                }
+
+                // GPSデータは全て保持
+                if (exifObj['GPS']) {
+                    filtered['GPS'] = exifObj['GPS'];
+                }
+
+                // データがある場合のみ返す
+                if (Object.keys(filtered['0th']).length > 0 ||
+                    Object.keys(filtered['Exif']).length > 0 ||
+                    Object.keys(filtered['GPS']).length > 0) {
+                    return filtered;
+                }
+
+                return null;
+            }
+
+            extractXMPData(dataUrl) {
+                try {
+                    const base64Data = dataUrl.split(',')[1];
+                    const binaryString = atob(base64Data);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+
+                    // XMPをバイナリ（Uint8Array）として抽出
+                    // XMP開始パターンをバイト列で検索
+                    const xmpStartMarker = new TextEncoder().encode('http://ns.adobe.com/xap/1.0/');
+                    const xmpPacketStart = new TextEncoder().encode('<?xpacket begin=');
+                    const xmpMetaStart = new TextEncoder().encode('<x:xmpmeta');
+                    const xmpMetaStart2 = new TextEncoder().encode('<xmpmeta');
+
+                    let xmpStartIndex = -1;
+
+                    // 各パターンを検索
+                    for (const marker of [xmpStartMarker, xmpPacketStart, xmpMetaStart, xmpMetaStart2]) {
+                        for (let i = 0; i <= bytes.length - marker.length; i++) {
+                            let match = true;
+                            for (let j = 0; j < marker.length; j++) {
+                                if (bytes[i + j] !== marker[j]) {
+                                    match = false;
+                                    break;
+                                }
+                            }
+                            if (match) {
+                                // XMPパケット開始位置を探す（http://ns.adobe.com/xap/1.0/ の前にはマーカーがある）
+                                // APP1セグメント構造: FF E1 [長さ] [識別子またはXMPパケット]
+                                // 識別子 "http://ns.adobe.com/xap/1.0/" の場合は、その後ろにXMPデータが来る
+                                if (marker === xmpStartMarker) {
+                                    // 識別子の後ろ(null終端をスキップ)
+                                    let dataStart = i + marker.length;
+                                    while (dataStart < bytes.length && bytes[dataStart] === 0) {
+                                        dataStart++;
+                                    }
+                                    xmpStartIndex = dataStart;
+                                } else {
+                                    // XMPパケットまたはxmpmetaタグの場合はその位置から
+                                    xmpStartIndex = i;
+                                }
+                                break;
+                            }
+                        }
+                        if (xmpStartIndex !== -1) break;
+                    }
+
+                    if (xmpStartIndex !== -1) {
+                        // XMP終了位置を探す
+                        const xmpEndMarker = new TextEncoder().encode('<?xpacket end=');
+                        const xmpMetaEnd = new TextEncoder().encode('</x:xmpmeta>');
+                        const xmpMetaEnd2 = new TextEncoder().encode('</xmpmeta>');
+
+                        let xmpEndIndex = -1;
+
+                        for (const marker of [xmpEndMarker, xmpMetaEnd, xmpMetaEnd2]) {
+                            for (let i = xmpStartIndex; i <= bytes.length - marker.length; i++) {
+                                let match = true;
+                                for (let j = 0; j < marker.length; j++) {
+                                    if (bytes[i + j] !== marker[j]) {
+                                        match = false;
+                                        break;
+                                    }
+                                }
+                                if (match) {
+                                    // 終了タグの閉じ括弧まで探す
+                                    let endTagEnd = i + marker.length;
+                                    while (endTagEnd < bytes.length && bytes[endTagEnd] !== 62) { // '>'
+                                        endTagEnd++;
+                                    }
+                                    if (endTagEnd < bytes.length) {
+                                        xmpEndIndex = endTagEnd + 1;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (xmpEndIndex !== -1) break;
+                        }
+
+                        // XMPバイナリデータを抽出
+                        const xmpLength = xmpEndIndex !== -1
+                            ? xmpEndIndex - xmpStartIndex
+                            : Math.min(100000, bytes.length - xmpStartIndex);
+
+                        const xmpBytes = bytes.subarray(xmpStartIndex, xmpStartIndex + xmpLength);
+
+                        // UTF-8としてデコードして文字列として返す
+                        return new TextDecoder('utf-8').decode(xmpBytes);
+                    }
+                } catch (error) {
+                    console.warn('XMP抽出エラー:', error);
+                }
+                return null;
+            }
+
+            showPhotosList() {
+                document.getElementById('upload-section').style.display = 'none';
+                document.getElementById('photos-section').style.display = 'block';
+                
+                const photosList = document.getElementById('photos-list');
+                photosList.innerHTML = '';
+                
+                this.photos.forEach((photo, index) => {
+                    const photoItem = this.createPhotoItem(photo, index);
+                    photosList.appendChild(photoItem);
+                });
+                
+                // 最初の写真を選択状態にする
+                this.currentPhotoIndex = 0;
+                this.updateSelection();
+                
+                // サムネイル一覧を生成
+                this.generateThumbnails();
+            }
+
+            createPhotoItem(photo, index) {
+                const div = document.createElement('div');
+                div.className = 'photo-item';
+                div.id = `photo-${index}`;
+                if (!photo.isApproved) {
+                    div.classList.add('rejected');
+                }
+                
+                // 写真クリックで選択状態変更
+                div.addEventListener('click', (e) => {
+                    // コントロール要素のクリックは除外
+                    if (!e.target.closest('button') && !e.target.closest('input') && !e.target.closest('.crop-overlay')) {
+                        this.currentPhotoIndex = index;
+                        this.updateSelection();
+                        this.showToast(`写真 ${index + 1} を選択`, 'info');
+                    }
+                });
+                
+                const cropContainer = document.createElement('div');
+                cropContainer.className = 'crop-container';
+                cropContainer.id = `crop-container-${index}`;
+                
+                const canvas = document.createElement('canvas');
+                canvas.className = 'photo-preview crop-canvas';
+                canvas.id = `canvas-${index}`;
+                canvas.width = photo.width;
+                canvas.height = photo.height;
+                
+                const ctx = canvas.getContext('2d');
+                ctx.putImageData(photo.currentImageData, 0, 0);
+                
+                cropContainer.appendChild(canvas);
+                
+                const controls = document.createElement('div');
+                controls.className = 'photo-controls';
+
+                // EXIF情報を生成
+                let exifInfo = '';
+                if (photo.hasExif && photo.exifData) {
+                    const zeroth = photo.exifData['0th'] || {};
+                    const exif = photo.exifData['Exif'] || {};
+
+                    const make = zeroth[271] || '';
+                    const model = zeroth[272] || '';
+                    const dateTimeOriginal = exif[36867] || '';
+                    const dateTime = zeroth[306] || '';
+
+                    const camera = make && model ? `${make} ${model}` : (make || model || '');
+                    const date = dateTimeOriginal || dateTime;
+
+                    if (camera || date) {
+                        exifInfo = `<div class="exif-info">`;
+                        if (camera) {
+                            exifInfo += `<span class="exif-camera">📷 ${camera}</span>`;
+                        }
+                        if (date) {
+                            const dateMatch = date.match(/(\d{4}):(\d{2}):(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
+                            if (dateMatch) {
+                                const formattedDate = `${dateMatch[1]}/${dateMatch[2]}/${dateMatch[3]} ${dateMatch[4]}:${dateMatch[5]}`;
+                                exifInfo += `<span class="exif-date">📅 ${formattedDate}</span>`;
+                            }
+                        }
+                        exifInfo += `</div>`;
+                    }
+                }
+
+                controls.innerHTML = `
+                    <button class="btn btn-primary" onclick="photoEditor.rotatePhoto(${index}, -90)">↺ 左回転</button>
+                    <button class="btn btn-primary" onclick="photoEditor.rotatePhoto(${index}, 90)">↻ 右回転</button>
+                    <button class="btn btn-warning" onclick="photoEditor.toggleCrop(${index})" id="crop-btn-${index}">✂️ トリミング</button>
+                    <button class="btn btn-success" onclick="photoEditor.autoLevel(${index})">✨ 自動補正</button>
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="approve-${index}" ${photo.isApproved ? 'checked' : ''}
+                               onchange="photoEditor.toggleApproval(${index})">
+                        <label for="approve-${index}">採用</label>
+                    </div>
+                    ${exifInfo}
+                </div>
+                
+                <div class="crop-controls" id="crop-controls-${index}" style="display: none;">
+                    <div class="aspect-ratio-buttons">
+                        <button class="aspect-btn active" data-ratio="free" onclick="photoEditor.setAspectRatio(${index}, 'free')">フリー</button>
+                        <button class="aspect-btn" data-ratio="1:1" onclick="photoEditor.setAspectRatio(${index}, 1)">1:1</button>
+                        <button class="aspect-btn" data-ratio="4:3" onclick="photoEditor.setAspectRatio(${index}, 4/3)">4:3</button>
+                        <button class="aspect-btn" data-ratio="16:9" onclick="photoEditor.setAspectRatio(${index}, 16/9)">16:9</button>
+                        <button class="aspect-btn" data-ratio="3:2" onclick="photoEditor.setAspectRatio(${index}, 3/2)">3:2</button>
+                    </div>
+                    <button class="btn btn-success" onclick="photoEditor.applyCrop(${index})">✓ 適用</button>
+                    <button class="btn btn-secondary" onclick="photoEditor.cancelCrop(${index})">✕ キャンセル</button>
+                </div>
+                
+                <div class="manual-adjustments">
+                    <h4>手動調整 <span class="coming-soon">Coming Soon</span></h4>
+                    <div class="control-group">
+                        <label>明るさ: <span class="range-value">0</span></label>
+                        <input type="range" min="-100" max="100" value="0" class="manual-slider" data-type="brightness" disabled>
+                    </div>
+                    <div class="control-group">
+                        <label>コントラスト: <span class="range-value">0</span></label>
+                        <input type="range" min="-100" max="100" value="0" class="manual-slider" data-type="contrast" disabled>
+                    </div>
+                </div>
+                `;
+                
+                div.appendChild(cropContainer);
+                div.appendChild(controls);
+                
+                return div;
+            }
+
+            rotatePhoto(index, angle) {
+                this.saveToUndoStack();
+                const photo = this.photos[index];
+                
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // 90度回転の場合、幅と高さを入れ替える
+                if (Math.abs(angle) === 90) {
+                    canvas.width = photo.height;
+                    canvas.height = photo.width;
+                } else {
+                    canvas.width = photo.width;
+                    canvas.height = photo.height;
+                }
+                
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.rotate(angle * Math.PI / 180);
+                ctx.translate(-photo.width / 2, -photo.height / 2);
+                
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = photo.width;
+                tempCanvas.height = photo.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.putImageData(photo.currentImageData, 0, 0);
+                
+                ctx.drawImage(tempCanvas, 0, 0);
+
+                // まず画像データを更新（まだphoto.width/heightは古いまま）
+                photo.currentImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                photo.rotation = (photo.rotation + angle) % 360;
+
+                // 次にwidth/heightを更新（90度回転の場合は入れ替え）
+                if (Math.abs(angle) === 90) {
+                    [photo.width, photo.height] = [photo.height, photo.width];
+                }
+                
+                this.updatePhotoDisplay(index);
+                
+                // サムネイルも更新
+                this.updateThumbnailImage(index);
+                
+                this.showToast('写真を回転しました', 'success');
+            }
+
+            rotateCurrentPhoto(angle) {
+                if (this.currentPhotoIndex < this.photos.length) {
+                    this.rotatePhoto(this.currentPhotoIndex, angle);
+                }
+            }
+
+            toggleCrop(index) {
+                const photo = this.photos[index];
+                const cropContainer = document.getElementById(`crop-container-${index}`);
+                const cropControls = document.getElementById(`crop-controls-${index}`);
+                const cropBtn = document.getElementById(`crop-btn-${index}`);
+                
+                if (photo.cropMode) {
+                    this.exitCropMode(index);
+                } else {
+                    this.enterCropMode(index);
+                }
+            }
+
+            enterCropMode(index) {
+                const photo = this.photos[index];
+                const cropContainer = document.getElementById(`crop-container-${index}`);
+                const cropControls = document.getElementById(`crop-controls-${index}`);
+                const cropBtn = document.getElementById(`crop-btn-${index}`);
+                const canvas = document.getElementById(`canvas-${index}`);
+                
+                photo.cropMode = true;
+                photo.aspectRatio = 'free';
+                photo.cropData = {
+                    x: photo.width * 0.1,
+                    y: photo.height * 0.1,
+                    width: photo.width * 0.8,
+                    height: photo.height * 0.8
+                };
+                
+                cropControls.style.display = 'block';
+                cropBtn.textContent = '✕ トリミング終了';
+                cropBtn.className = 'btn btn-danger';
+                
+                this.createCropOverlay(index);
+                this.addCropEventListeners(index);
+                this.showToast('トリミング範囲をドラッグで調整してください', 'info');
+            }
+
+            exitCropMode(index) {
+                const photo = this.photos[index];
+                const cropContainer = document.getElementById(`crop-container-${index}`);
+                const cropControls = document.getElementById(`crop-controls-${index}`);
+                const cropBtn = document.getElementById(`crop-btn-${index}`);
+                
+                photo.cropMode = false;
+                cropControls.style.display = 'none';
+                cropBtn.textContent = '✂️ トリミング';
+                cropBtn.className = 'btn btn-warning';
+                
+                this.removeCropOverlay(index);
+                this.removeCropEventListeners(index);
+            }
+
+            createCropOverlay(index) {
+                const photo = this.photos[index];
+                const cropContainer = document.getElementById(`crop-container-${index}`);
+                
+                // 既存のオーバーレイを削除
+                this.removeCropOverlay(index);
+                
+                // マスク要素を追加（4つの要素で画像領域を覆う）
+                const masks = ['top', 'bottom', 'left', 'right'];
+                masks.forEach(position => {
+                    const mask = document.createElement('div');
+                    mask.className = `crop-mask ${position}`;
+                    mask.id = `crop-mask-${position}-${index}`;
+                    mask.style.display = 'block';
+                    cropContainer.appendChild(mask);
+                });
+                
+                const overlay = document.createElement('div');
+                overlay.className = 'crop-overlay';
+                overlay.id = `crop-overlay-${index}`;
+                overlay.style.display = 'block';
+                
+                // グリッド線を追加
+                const grid = document.createElement('div');
+                grid.className = 'crop-grid';
+                grid.innerHTML = `
+                    <div class="crop-grid-line vertical-1"></div>
+                    <div class="crop-grid-line vertical-2"></div>
+                    <div class="crop-grid-line horizontal-1"></div>
+                    <div class="crop-grid-line horizontal-2"></div>
+                `;
+                overlay.appendChild(grid);
+                
+                // ハンドルを追加
+                const handles = ['nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e'];
+                handles.forEach(handle => {
+                    const handleDiv = document.createElement('div');
+                    handleDiv.className = `crop-handle ${handle}`;
+                    handleDiv.dataset.handle = handle;
+                    overlay.appendChild(handleDiv);
+                });
+                
+                cropContainer.appendChild(overlay);
+                this.updateCropOverlay(index);
+            }
+
+            removeCropOverlay(index) {
+                const overlay = document.getElementById(`crop-overlay-${index}`);
+                if (overlay) {
+                    overlay.remove();
+                }
+                
+                // マスク要素も削除
+                const masks = ['top', 'bottom', 'left', 'right'];
+                masks.forEach(position => {
+                    const mask = document.getElementById(`crop-mask-${position}-${index}`);
+                    if (mask) {
+                        mask.remove();
+                    }
+                });
+            }
+
+            updateCropOverlay(index) {
+                const photo = this.photos[index];
+                const overlay = document.getElementById(`crop-overlay-${index}`);
+                const canvas = document.getElementById(`canvas-${index}`);
+                
+                if (!overlay || !photo.cropData) return;
+                
+                const rect = canvas.getBoundingClientRect();
+                const containerRect = canvas.parentElement.getBoundingClientRect();
+                
+                const scaleX = rect.width / photo.width;
+                const scaleY = rect.height / photo.height;
+                
+                const cropX = photo.cropData.x * scaleX;
+                const cropY = photo.cropData.y * scaleY;
+                const cropWidth = photo.cropData.width * scaleX;
+                const cropHeight = photo.cropData.height * scaleY;
+                
+                // オーバーレイ位置を更新
+                overlay.style.left = cropX + 'px';
+                overlay.style.top = cropY + 'px';
+                overlay.style.width = cropWidth + 'px';
+                overlay.style.height = cropHeight + 'px';
+                
+                // マスク要素の位置とサイズを更新
+                const topMask = document.getElementById(`crop-mask-top-${index}`);
+                const bottomMask = document.getElementById(`crop-mask-bottom-${index}`);
+                const leftMask = document.getElementById(`crop-mask-left-${index}`);
+                const rightMask = document.getElementById(`crop-mask-right-${index}`);
+                
+                if (topMask) {
+                    topMask.style.height = cropY + 'px';
+                }
+                
+                if (bottomMask) {
+                    bottomMask.style.top = (cropY + cropHeight) + 'px';
+                    bottomMask.style.height = (rect.height - cropY - cropHeight) + 'px';
+                }
+                
+                if (leftMask) {
+                    leftMask.style.top = cropY + 'px';
+                    leftMask.style.width = cropX + 'px';
+                    leftMask.style.height = cropHeight + 'px';
+                }
+                
+                if (rightMask) {
+                    rightMask.style.top = cropY + 'px';
+                    rightMask.style.width = (rect.width - cropX - cropWidth) + 'px';
+                    rightMask.style.height = cropHeight + 'px';
+                }
+            }
+
+            addCropEventListeners(index) {
+                const canvas = document.getElementById(`canvas-${index}`);
+                const overlay = document.getElementById(`crop-overlay-${index}`);
+                
+                let isDragging = false;
+                let isResizing = false;
+                let dragStart = { x: 0, y: 0 };
+                let resizeHandle = null;
+                
+                const getMousePos = (e) => {
+                    const rect = canvas.getBoundingClientRect();
+                    const scaleX = canvas.width / rect.width;
+                    const scaleY = canvas.height / rect.height;
+                    
+                    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+                    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+                    
+                    return {
+                        x: (clientX - rect.left) * scaleX,
+                        y: (clientY - rect.top) * scaleY
+                    };
+                };
+                
+                // マウス/タッチ開始
+                const startDrag = (e) => {
+                    e.preventDefault();
+                    const pos = getMousePos(e);
+                    const photo = this.photos[index];
+                    
+                    if (e.target.classList.contains('crop-handle')) {
+                        isResizing = true;
+                        resizeHandle = e.target.dataset.handle;
+                    } else if (e.target === overlay) {
+                        isDragging = true;
+                    } else {
+                        // 新しい選択範囲を開始
+                        photo.cropData = {
+                            x: pos.x,
+                            y: pos.y,
+                            width: 0,
+                            height: 0
+                        };
+                        isDragging = true;
+                    }
+                    
+                    dragStart = pos;
+                };
+                
+                // マウス/タッチ移動
+                const doDrag = (e) => {
+                    if (!isDragging && !isResizing) return;
+                    e.preventDefault();
+                    
+                    const pos = getMousePos(e);
+                    const photo = this.photos[index];
+                    const deltaX = pos.x - dragStart.x;
+                    const deltaY = pos.y - dragStart.y;
+                    
+                    if (isDragging) {
+                        if (photo.cropData.width === 0 && photo.cropData.height === 0) {
+                            // 新しい選択範囲を作成
+                            photo.cropData.width = Math.abs(deltaX);
+                            photo.cropData.height = Math.abs(deltaY);
+                            if (deltaX < 0) photo.cropData.x = pos.x;
+                            if (deltaY < 0) photo.cropData.y = pos.y;
+                        } else {
+                            // 既存の選択範囲を移動
+                            photo.cropData.x = Math.max(0, Math.min(photo.width - photo.cropData.width, photo.cropData.x + deltaX));
+                            photo.cropData.y = Math.max(0, Math.min(photo.height - photo.cropData.height, photo.cropData.y + deltaY));
+                            dragStart = pos;
+                        }
+                    } else if (isResizing) {
+                        this.resizeCropArea(index, resizeHandle, deltaX, deltaY);
+                        dragStart = pos;
+                    }
+                    
+                    this.constrainAspectRatio(index);
+                    this.updateCropOverlay(index);
+                };
+                
+                // マウス/タッチ終了
+                const endDrag = (e) => {
+                    isDragging = false;
+                    isResizing = false;
+                    resizeHandle = null;
+                };
+                
+                // イベントリスナーを追加
+                canvas.addEventListener('mousedown', startDrag);
+                canvas.addEventListener('touchstart', startDrag);
+                overlay.addEventListener('mousedown', startDrag);
+                overlay.addEventListener('touchstart', startDrag);
+                
+                document.addEventListener('mousemove', doDrag);
+                document.addEventListener('touchmove', doDrag);
+                document.addEventListener('mouseup', endDrag);
+                document.addEventListener('touchend', endDrag);
+                
+                // クリーンアップ用にリスナーを保存
+                this.photos[index].cropListeners = {
+                    startDrag, doDrag, endDrag
+                };
+            }
+
+            removeCropEventListeners(index) {
+                const photo = this.photos[index];
+                if (!photo.cropListeners) return;
+                
+                const canvas = document.getElementById(`canvas-${index}`);
+                const overlay = document.getElementById(`crop-overlay-${index}`);
+                
+                const { startDrag, doDrag, endDrag } = photo.cropListeners;
+                
+                if (canvas) {
+                    canvas.removeEventListener('mousedown', startDrag);
+                    canvas.removeEventListener('touchstart', startDrag);
+                }
+                
+                if (overlay) {
+                    overlay.removeEventListener('mousedown', startDrag);
+                    overlay.removeEventListener('touchstart', startDrag);
+                }
+                
+                document.removeEventListener('mousemove', doDrag);
+                document.removeEventListener('touchmove', doDrag);
+                document.removeEventListener('mouseup', endDrag);
+                document.removeEventListener('touchend', endDrag);
+                
+                delete photo.cropListeners;
+            }
+
+            resizeCropArea(index, handle, deltaX, deltaY) {
+                const photo = this.photos[index];
+                const crop = photo.cropData;
+                const aspectRatio = photo.aspectRatio;
+                
+                switch (handle) {
+                    case 'nw':
+                        if (aspectRatio === 'free') {
+                            crop.x += deltaX;
+                            crop.y += deltaY;
+                            crop.width -= deltaX;
+                            crop.height -= deltaY;
+                        } else {
+                            this.resizeCornerWithAspect(crop, aspectRatio, deltaX, deltaY, 'nw');
+                        }
+                        break;
+                    case 'ne':
+                        if (aspectRatio === 'free') {
+                            crop.y += deltaY;
+                            crop.width += deltaX;
+                            crop.height -= deltaY;
+                        } else {
+                            this.resizeCornerWithAspect(crop, aspectRatio, deltaX, deltaY, 'ne');
+                        }
+                        break;
+                    case 'sw':
+                        if (aspectRatio === 'free') {
+                            crop.x += deltaX;
+                            crop.width -= deltaX;
+                            crop.height += deltaY;
+                        } else {
+                            this.resizeCornerWithAspect(crop, aspectRatio, deltaX, deltaY, 'sw');
+                        }
+                        break;
+                    case 'se':
+                        if (aspectRatio === 'free') {
+                            crop.width += deltaX;
+                            crop.height += deltaY;
+                        } else {
+                            this.resizeCornerWithAspect(crop, aspectRatio, deltaX, deltaY, 'se');
+                        }
+                        break;
+                    case 'n':
+                        this.resizeCropFromCenter(crop, aspectRatio, 'vertical', -deltaY, 'top');
+                        break;
+                    case 's':
+                        this.resizeCropFromCenter(crop, aspectRatio, 'vertical', deltaY, 'bottom');
+                        break;
+                    case 'w':
+                        this.resizeCropFromCenter(crop, aspectRatio, 'horizontal', -deltaX, 'left');
+                        break;
+                    case 'e':
+                        this.resizeCropFromCenter(crop, aspectRatio, 'horizontal', deltaX, 'right');
+                        break;
+                }
+                
+                // 境界チェック
+                this.constrainCropToBounds(crop, photo.width, photo.height);
+            }
+
+            resizeCropFromCenter(crop, aspectRatio, direction, delta, side) {
+                if (aspectRatio === 'free') {
+                    // フリーモードでは従来通り
+                    if (direction === 'vertical') {
+                        if (side === 'top') {
+                            crop.y -= delta;
+                            crop.height += delta;
+                        } else {
+                            crop.height += delta;
+                        }
+                    } else {
+                        if (side === 'left') {
+                            crop.x -= delta;
+                            crop.width += delta;
+                        } else {
+                            crop.width += delta;
+                        }
+                    }
+                    return;
+                }
+                
+                // アスペクト比固定モードでは両方向を調整
+                const targetRatio = aspectRatio;
+                
+                if (direction === 'vertical') {
+                    // 縦方向のハンドル操作
+                    let newHeight = crop.height + delta;
+                    
+                    if (newHeight > 0) {
+                        const newWidth = newHeight * targetRatio;
+                        const widthDelta = newWidth - crop.width;
+                        const heightDelta = newHeight - crop.height;
+                        
+                        // 中央から拡大・縮小
+                        crop.x -= widthDelta / 2;
+                        crop.width = newWidth;
+                        crop.height = newHeight;
+                        
+                        if (side === 'top') {
+                            // 上ハンドルの場合は上方向に拡大
+                            crop.y -= heightDelta;
+                        }
+                    }
+                } else {
+                    // 横方向のハンドル操作
+                    let newWidth = crop.width + delta;
+                    
+                    if (newWidth > 0) {
+                        const newHeight = newWidth / targetRatio;
+                        const widthDelta = newWidth - crop.width;
+                        const heightDelta = newHeight - crop.height;
+                        
+                        // 中央から拡大・縮小
+                        crop.y -= heightDelta / 2;
+                        crop.width = newWidth;
+                        crop.height = newHeight;
+                        
+                        if (side === 'left') {
+                            // 左ハンドルの場合は左方向に拡大
+                            crop.x -= widthDelta;
+                        }
+                    }
+                }
+            }
+
+            resizeCornerWithAspect(crop, aspectRatio, deltaX, deltaY, corner) {
+                const targetRatio = aspectRatio;
+                
+                // どちらの方向の変化が大きいかで主導する方向を決める
+                const absX = Math.abs(deltaX);
+                const absY = Math.abs(deltaY);
+                
+                let newWidth, newHeight;
+                
+                if (absX > absY) {
+                    // 横方向主導
+                    switch (corner) {
+                        case 'nw':
+                        case 'sw':
+                            newWidth = crop.width - deltaX;
+                            break;
+                        case 'ne':
+                        case 'se':
+                            newWidth = crop.width + deltaX;
+                            break;
+                    }
+                    newHeight = newWidth / targetRatio;
+                } else {
+                    // 縦方向主導
+                    switch (corner) {
+                        case 'nw':
+                        case 'ne':
+                            newHeight = crop.height - deltaY;
+                            break;
+                        case 'sw':
+                        case 'se':
+                            newHeight = crop.height + deltaY;
+                            break;
+                    }
+                    newWidth = newHeight * targetRatio;
+                }
+                
+                if (newWidth > 0 && newHeight > 0) {
+                    const widthDelta = newWidth - crop.width;
+                    const heightDelta = newHeight - crop.height;
+                    
+                    // 角の位置に応じて座標を調整
+                    switch (corner) {
+                        case 'nw':
+                            crop.x -= widthDelta;
+                            crop.y -= heightDelta;
+                            break;
+                        case 'ne':
+                            crop.y -= heightDelta;
+                            break;
+                        case 'sw':
+                            crop.x -= widthDelta;
+                            break;
+                        case 'se':
+                            // 右下は座標変更なし
+                            break;
+                    }
+                    
+                    crop.width = newWidth;
+                    crop.height = newHeight;
+                }
+            }
+
+            constrainCropToBounds(crop, maxWidth, maxHeight) {
+                // 最小サイズ制限
+                const minSize = 10;
+                
+                // 境界内に収める
+                crop.x = Math.max(0, crop.x);
+                crop.y = Math.max(0, crop.y);
+                
+                // 右端と下端の制限
+                if (crop.x + crop.width > maxWidth) {
+                    crop.x = maxWidth - crop.width;
+                    if (crop.x < 0) {
+                        crop.x = 0;
+                        crop.width = maxWidth;
+                    }
+                }
+                
+                if (crop.y + crop.height > maxHeight) {
+                    crop.y = maxHeight - crop.height;
+                    if (crop.y < 0) {
+                        crop.y = 0;
+                        crop.height = maxHeight;
+                    }
+                }
+                
+                // 最小サイズ制限
+                crop.width = Math.max(minSize, crop.width);
+                crop.height = Math.max(minSize, crop.height);
+                
+                // 再度境界チェック（最小サイズ適用後）
+                if (crop.x + crop.width > maxWidth) {
+                    crop.x = maxWidth - crop.width;
+                }
+                if (crop.y + crop.height > maxHeight) {
+                    crop.y = maxHeight - crop.height;
+                }
+            }
+
+            setAspectRatio(index, ratio) {
+                const photo = this.photos[index];
+                photo.aspectRatio = ratio;
+                
+                // アクティブボタンを更新
+                const buttons = document.querySelectorAll(`#crop-controls-${index} .aspect-btn`);
+                buttons.forEach(btn => btn.classList.remove('active'));
+                
+                if (ratio === 'free') {
+                    document.querySelector(`#crop-controls-${index} .aspect-btn[data-ratio="free"]`).classList.add('active');
+                } else {
+                    document.querySelector(`#crop-controls-${index} .aspect-btn[data-ratio="${ratio === 1 ? '1:1' : ratio === 4/3 ? '4:3' : ratio === 16/9 ? '16:9' : '3:2'}"]`).classList.add('active');
+                }
+                
+                this.constrainAspectRatio(index);
+                this.updateCropOverlay(index);
+            }
+
+            constrainAspectRatio(index) {
+                const photo = this.photos[index];
+                if (!photo.cropData || photo.aspectRatio === 'free') return;
+                
+                const crop = photo.cropData;
+                const targetRatio = photo.aspectRatio;
+                const currentRatio = crop.width / crop.height;
+                
+                if (Math.abs(currentRatio - targetRatio) > 0.01) {
+                    if (currentRatio > targetRatio) {
+                        // 幅が広すぎる
+                        crop.width = crop.height * targetRatio;
+                    } else {
+                        // 高さが高すぎる
+                        crop.height = crop.width / targetRatio;
+                    }
+                    
+                    // 境界チェック
+                    if (crop.x + crop.width > photo.width) {
+                        crop.width = photo.width - crop.x;
+                        crop.height = crop.width / targetRatio;
+                    }
+                    if (crop.y + crop.height > photo.height) {
+                        crop.height = photo.height - crop.y;
+                        crop.width = crop.height * targetRatio;
+                    }
+                }
+            }
+
+            applyCrop(index) {
+                this.saveToUndoStack();
+                const photo = this.photos[index];
+                
+                if (!photo.cropData) {
+                    this.showToast('トリミング範囲が選択されていません', 'warning');
+                    return;
+                }
+                
+                const crop = photo.cropData;
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                canvas.width = Math.floor(crop.width);
+                canvas.height = Math.floor(crop.height);
+                
+                // 元画像データから切り取り
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = photo.width;
+                tempCanvas.height = photo.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.putImageData(photo.currentImageData, 0, 0);
+                
+                ctx.drawImage(tempCanvas, 
+                    Math.floor(crop.x), Math.floor(crop.y), Math.floor(crop.width), Math.floor(crop.height),
+                    0, 0, Math.floor(crop.width), Math.floor(crop.height)
+                );
+                
+                // 写真データを更新
+                photo.width = canvas.width;
+                photo.height = canvas.height;
+                photo.currentImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                this.exitCropMode(index);
+                this.updatePhotoDisplay(index);
+                
+                // サムネイルも更新
+                this.updateThumbnailImage(index);
+                
+                this.showToast('トリミングを適用しました', 'success');
+            }
+
+            cancelCrop(index) {
+                this.exitCropMode(index);
+                this.showToast('トリミングをキャンセルしました', 'info');
+            }
+
+            async autoLevel(index) {
+                this.saveToUndoStack();
+                const photo = this.photos[index];
+                
+                if (photo.autoLevelApplied) {
+                    // 自動補正を解除
+                    photo.currentImageData = photo.originalImageData;
+                    photo.autoLevelApplied = false;
+                    this.updatePhotoDisplay(index);
+                    
+                    // サムネイルも更新
+                    this.updateThumbnailImage(index);
+                    
+                    this.showToast('自動補正を解除しました', 'info');
+                } else {
+                    // 自動補正を適用（非同期処理）
+                    this.showToast('自動補正を実行中...', 'info');
+
+                    // UIの更新を確実にするため待機
+                    await new Promise(resolve => setTimeout(resolve, 200));
+
+                    try {
+                        const imageData = await this.applyAutoLevelAsync(photo.currentImageData);
+
+                        photo.currentImageData = imageData;
+                        photo.autoLevelApplied = true;
+                        this.updatePhotoDisplay(index);
+
+                        // サムネイルも更新
+                        this.updateThumbnailImage(index);
+
+                        // 完了通知を確実に表示するため待機
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        this.showToast('自動補正を適用しました', 'success');
+                    } catch (error) {
+                        this.showToast('自動補正に失敗しました', 'error');
+                    }
+                }
+            }
+
+            applyAutoLevel(imageData, intensity = 0.6) {
+                const data = imageData.data;
+                const totalPixels = imageData.width * imageData.height;
+                
+                // 明度ヒストグラムを作成（高速化）
+                const luminanceHistogram = new Array(256).fill(0);
+                let minLum = 255, maxLum = 0, sum = 0;
+                
+                // 1パス処理でヒストグラムと統計値を同時計算
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    
+                    // 明度計算（ITU-R BT.709準拠、整数演算で高速化）
+                    const luminance = (54 * r + 183 * g + 19 * b) >> 8; // 0.2126*256, 0.7152*256, 0.0722*256
+                    
+                    luminanceHistogram[luminance]++;
+                    if (luminance < minLum) minLum = luminance;
+                    if (luminance > maxLum) maxLum = luminance;
+                    sum += luminance;
+                }
+                
+                const lumRange = maxLum - minLum;
+                if (lumRange === 0) {
+                    // 単色画像の場合は処理不要
+                    return imageData;
+                }
+                
+                // 適度な補正のための制限値
+                const clipLimitLow = Math.max(0, minLum - 20);
+                const clipLimitHigh = Math.min(255, maxLum + 20);
+                const clipRange = clipLimitHigh - clipLimitLow;
+                
+                // 明度マッピングテーブルを事前計算（256要素のみ）
+                const luminanceMapping = new Array(256);
+                const oneMinusIntensity = 1 - intensity;
+                
+                for (let i = 0; i < 256; i++) {
+                    if (i < minLum || i > maxLum) {
+                        luminanceMapping[i] = i;
+                        continue;
+                    }
+                    
+                    // 正規化された位置 (0-1)
+                    const normalized = (i - minLum) / lumRange;
+                    
+                    // S字カーブによる滑らかな調整（高速化）
+                    const enhanced = normalized < 0.5 
+                        ? 2 * normalized * normalized 
+                        : 1 - 2 * (1 - normalized) * (1 - normalized);
+                    
+                    // 制限値内での新しい値
+                    const newValue = clipLimitLow + enhanced * clipRange;
+                    
+                    // 強度調整（元の値と補正値をブレンド）
+                    luminanceMapping[i] = (i * oneMinusIntensity + newValue * intensity) | 0; // |0 で整数化
+                }
+                
+                // 明度比率テーブルを事前計算
+                const lumRatioTable = new Array(256);
+                for (let i = 1; i < 256; i++) {
+                    lumRatioTable[i] = luminanceMapping[i] / i;
+                }
+                
+                // 各ピクセルに適用（高速化）
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    
+                    // 明度計算（同じ式を再利用）
+                    const luminance = (54 * r + 183 * g + 19 * b) >> 8;
+                    
+                    if (luminance === 0) {
+                        // 黒ピクセルはそのまま
+                        continue;
+                    }
+                    
+                    // 事前計算済みの比率を使用
+                    const lumRatio = lumRatioTable[luminance];
+                    
+                    // RGB値に明度変化を適用（クランプ処理も高速化）
+                    data[i] = Math.min(255, (r * lumRatio) | 0);
+                    data[i + 1] = Math.min(255, (g * lumRatio) | 0);
+                    data[i + 2] = Math.min(255, (b * lumRatio) | 0);
+                }
+                
+                return imageData;
+            }
+
+            async applyAutoLevelAsync(imageData, intensity = 0.6) {
+                const data = imageData.data;
+                const totalPixels = imageData.width * imageData.height;
+                const chunkSize = Math.max(1000, Math.floor(totalPixels / 100)); // 1%ずつ処理
+
+                // 明度ヒストグラムを作成（高速化）
+                const luminanceHistogram = new Array(256).fill(0);
+                let minLum = 255, maxLum = 0, sum = 0;
+                
+                // 1パス処理でヒストグラムと統計値を同時計算（チャンク化）
+                for (let chunkStart = 0; chunkStart < data.length; chunkStart += chunkSize * 4) {
+                    const chunkEnd = Math.min(chunkStart + chunkSize * 4, data.length);
+                    
+                    for (let i = chunkStart; i < chunkEnd; i += 4) {
+                        const r = data[i];
+                        const g = data[i + 1];
+                        const b = data[i + 2];
+                        
+                        // 明度計算（ITU-R BT.709準拠、整数演算で高速化）
+                        const luminance = (54 * r + 183 * g + 19 * b) >> 8;
+                        
+                        luminanceHistogram[luminance]++;
+                        if (luminance < minLum) minLum = luminance;
+                        if (luminance > maxLum) maxLum = luminance;
+                        sum += luminance;
+                    }
+                    
+                    // UIをブロックしないよう定期的に制御を返す
+                    if (chunkStart % (chunkSize * 20) === 0) {
+                        await new Promise(resolve => setTimeout(resolve, 1));
+                    }
+                }
+                
+                const lumRange = maxLum - minLum;
+                if (lumRange === 0) {
+                    // 単色画像の場合は処理不要
+                    return imageData;
+                }
+                
+                // 適度な補正のための制限値
+                const clipLimitLow = Math.max(0, minLum - 20);
+                const clipLimitHigh = Math.min(255, maxLum + 20);
+                const clipRange = clipLimitHigh - clipLimitLow;
+                
+                // 明度マッピングテーブルを事前計算（256要素のみ）
+                const luminanceMapping = new Array(256);
+                const oneMinusIntensity = 1 - intensity;
+                
+                for (let i = 0; i < 256; i++) {
+                    if (i < minLum || i > maxLum) {
+                        luminanceMapping[i] = i;
+                        continue;
+                    }
+                    
+                    // 正規化された位置 (0-1)
+                    const normalized = (i - minLum) / lumRange;
+                    
+                    // S字カーブによる滑らかな調整（高速化）
+                    const enhanced = normalized < 0.5 
+                        ? 2 * normalized * normalized 
+                        : 1 - 2 * (1 - normalized) * (1 - normalized);
+                    
+                    // 制限値内での新しい値
+                    const newValue = clipLimitLow + enhanced * clipRange;
+                    
+                    // 強度調整（元の値と補正値をブレンド）
+                    luminanceMapping[i] = (i * oneMinusIntensity + newValue * intensity) | 0; // |0 で整数化
+                }
+                
+                // 明度比率テーブルを事前計算
+                const lumRatioTable = new Array(256);
+                for (let i = 1; i < 256; i++) {
+                    lumRatioTable[i] = luminanceMapping[i] / i;
+                }
+                
+                // 各ピクセルに適用（チャンク化で高速化）
+                for (let chunkStart = 0; chunkStart < data.length; chunkStart += chunkSize * 4) {
+                    const chunkEnd = Math.min(chunkStart + chunkSize * 4, data.length);
+                    
+                    for (let i = chunkStart; i < chunkEnd; i += 4) {
+                        const r = data[i];
+                        const g = data[i + 1];
+                        const b = data[i + 2];
+                        
+                        // 明度計算（同じ式を再利用）
+                        const luminance = (54 * r + 183 * g + 19 * b) >> 8;
+                        
+                        if (luminance === 0) {
+                            // 黒ピクセルはそのまま
+                            continue;
+                        }
+                        
+                        // 事前計算済みの比率を使用
+                        const lumRatio = lumRatioTable[luminance];
+                        
+                        // RGB値に明度変化を適用（クランプ処理も高速化）
+                        data[i] = Math.min(255, (r * lumRatio) | 0);
+                        data[i + 1] = Math.min(255, (g * lumRatio) | 0);
+                        data[i + 2] = Math.min(255, (b * lumRatio) | 0);
+                    }
+                    
+                    // UIをブロックしないよう定期的に制御を返す
+                    if (chunkStart % (chunkSize * 20) === 0) {
+                        await new Promise(resolve => setTimeout(resolve, 1));
+                    }
+                }
+                
+                return imageData;
+            }
+
+            toggleApproval(index) {
+                this.photos[index].isApproved = !this.photos[index].isApproved;
+                const photoItem = document.getElementById(`photo-${index}`);
+                if (this.photos[index].isApproved) {
+                    photoItem.classList.remove('rejected');
+                } else {
+                    photoItem.classList.add('rejected');
+                }
+                
+                // サムネイルの承認状態も更新
+                this.updateThumbnailApprovalState(index);
+            }
+
+            rejectCurrentPhoto() {
+                if (this.currentPhotoIndex < this.photos.length) {
+                    this.photos[this.currentPhotoIndex].isApproved = false;
+                    document.getElementById(`approve-${this.currentPhotoIndex}`).checked = false;
+                    const photoItem = document.getElementById(`photo-${this.currentPhotoIndex}`);
+                    photoItem.classList.add('rejected');
+                    
+                    // サムネイルの承認状態も更新
+                    this.updateThumbnailApprovalState(this.currentPhotoIndex);
+                    
+                    this.showToast('写真を不採用にしました', 'info');
+                }
+            }
+
+            approveCurrentPhoto() {
+                if (this.currentPhotoIndex < this.photos.length) {
+                    this.photos[this.currentPhotoIndex].isApproved = true;
+                    document.getElementById(`approve-${this.currentPhotoIndex}`).checked = true;
+                    const photoItem = document.getElementById(`photo-${this.currentPhotoIndex}`);
+                    photoItem.classList.remove('rejected');
+                    
+                    // サムネイルの承認状態も更新
+                    this.updateThumbnailApprovalState(this.currentPhotoIndex);
+                    
+                    this.showToast('写真を採用しました', 'success');
+                }
+            }
+
+            selectNextPhoto() {
+                this.currentPhotoIndex = (this.currentPhotoIndex + 1) % this.photos.length;
+                this.updateSelection();
+                this.showToast(`写真 ${this.currentPhotoIndex + 1} を選択`, 'info');
+            }
+
+            updateSelection() {
+                // 全ての写真から選択状態を除去
+                this.photos.forEach((photo, index) => {
+                    const photoItem = document.getElementById(`photo-${index}`);
+                    if (photoItem) {
+                        photoItem.classList.remove('selected');
+                    }
+                });
+                
+                // 現在選択中の写真に選択状態を追加
+                if (this.currentPhotoIndex < this.photos.length) {
+                    const currentPhoto = document.getElementById(`photo-${this.currentPhotoIndex}`);
+                    if (currentPhoto) {
+                        currentPhoto.classList.add('selected');
+                    }
+                }
+                
+                // サムネイルの選択状態も更新
+                this.updateThumbnailSelection();
+            }
+
+            updatePhotoDisplay(index) {
+                const photo = this.photos[index];
+                const canvas = document.querySelector(`#photo-${index} .photo-preview`);
+                if (canvas) {
+                    canvas.width = photo.width;
+                    canvas.height = photo.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.putImageData(photo.currentImageData, 0, 0);
+                }
+            }
+
+            async batchProcess() {
+                if (this.isProcessing) return;
+                
+                const approvedPhotos = this.photos.filter(photo => photo.isApproved);
+                if (approvedPhotos.length === 0) {
+                    this.showToast('採用写真がありません', 'warning');
+                    return;
+                }
+                
+                this.isProcessing = true;
+                this.showProgress(true);
+                this.showToast('保存先フォルダを準備してください', 'info');
+                
+                const resizeWidth = parseInt(document.getElementById('resize-width').value);
+                const quality = parseInt(document.getElementById('quality-slider').value) / 100;
+                
+                try {
+                    for (let i = 0; i < approvedPhotos.length; i++) {
+                        const photo = approvedPhotos[i];
+                        await this.processAndDownload(photo, i + 1, resizeWidth, quality);
+                        this.updateProgress((i + 1) / approvedPhotos.length * 100);
+                        
+                        // ダウンロード間隔
+                        if (i < approvedPhotos.length - 1) {
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
+                    }
+                    
+                    this.showToast(`${approvedPhotos.length}枚の写真を保存しました`, 'success');
+                } catch (error) {
+                    console.error('一括処理エラー:', error);
+                    this.showToast('一括処理中にエラーが発生しました', 'error');
+                } finally {
+                    this.isProcessing = false;
+                    this.showProgress(false);
+                }
+            }
+
+            async processAndDownload(photo, index, maxSize, quality) {
+                return new Promise(async (resolve) => {
+                    try {
+                        // 画像データを一時キャンバスに描画
+                        const tempCanvas = document.createElement('canvas');
+                        tempCanvas.width = photo.width;
+                        tempCanvas.height = photo.height;
+                        const tempCtx = tempCanvas.getContext('2d');
+                        tempCtx.putImageData(photo.currentImageData, 0, 0);
+
+                        // 高品質リサイズを実行
+                        const resizedCanvas = await this.highQualityResize(tempCanvas, maxSize);
+
+                        // JPEG として出力
+                        resizedCanvas.toBlob((blob) => {
+                            this.downloadBlobWithEXIF(blob, photo, index, resolve);
+                        }, 'image/jpeg', quality);
+                    } catch (error) {
+                        console.error('高品質リサイズエラー:', error);
+                        // フォールバック：従来の方法
+                        this.fallbackResize(photo, index, maxSize, quality, resolve);
+                    }
+                });
+            }
+
+            downloadBlobWithEXIF(blob, photo, index, resolve) {
+                // ダウンロード実行用の内部関数
+                const processDownload = (blobToDownload) => {
+                    const url = URL.createObjectURL(blobToDownload);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `img_${String(index).padStart(3, '0')}.jpg`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    resolve();
+                };
+
+                // XMP埋め込み後にダウンロードする内部関数
+                // 保存時に元ファイルからXMPを抽出して埋め込む（メモリ効率化）
+                const processXMPAndDownload = (blobWithExif) => {
+                    if (photo.originalFile && blobWithExif instanceof Blob) {
+                        const xmpReader = new FileReader();
+                        xmpReader.onload = () => {
+                            try {
+                                const xmpData = this.extractXMPData(xmpReader.result);
+                                if (xmpData) {
+                                    this.insertXMP(blobWithExif, xmpData)
+                                        .then((xmpBlob) => {
+                                            processDownload(xmpBlob);
+                                        })
+                                        .catch((xmpError) => {
+                                            console.warn('XMP埋め込みエラー:', xmpError);
+                                            processDownload(blobWithExif);
+                                        });
+                                } else {
+                                    processDownload(blobWithExif);
+                                }
+                            } catch (error) {
+                                processDownload(blobWithExif);
+                            }
+                        };
+                        xmpReader.onerror = () => {
+                            processDownload(blobWithExif);
+                        };
+                        xmpReader.readAsDataURL(photo.originalFile);
+                    } else {
+                        processDownload(blobWithExif);
+                    }
+                };
+
+                // EXIFデータを埋め込む（BlobをBase64に変換してから処理）
+                if (photo.exifData && typeof piexif !== 'undefined') {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        try {
+                            const dataUrl = reader.result;
+                            const exifBytes = piexif.dump(photo.exifData);
+                            const exifStr = piexif.insert(exifBytes, dataUrl);
+
+                            // Base64からBlobに変換
+                            const byteCharacters = atob(exifStr.split(',')[1]);
+                            const byteArrays = [];
+                            for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+                                const slice = byteCharacters.slice(offset, offset + 512);
+                                const byteNumbers = new Array(slice.length);
+                                for (let i = 0; i < slice.length; i++) {
+                                    byteNumbers[i] = slice.charCodeAt(i);
+                                }
+                                byteArrays.push(new Uint8Array(byteNumbers));
+                            }
+                            const finalBlob = new Blob(byteArrays, {type: 'image/jpeg'});
+                            processXMPAndDownload(finalBlob);
+                        } catch (exifError) {
+                            console.warn('EXIF埋め込みエラー:', exifError);
+                            processXMPAndDownload(blob);
+                        }
+                    };
+                    reader.onerror = () => {
+                        console.warn('EXIF埋め込み用のファイル読み込みエラー');
+                        processXMPAndDownload(blob);
+                    };
+                    reader.readAsDataURL(blob);
+                } else {
+                    processXMPAndDownload(blob);
+                }
+            }
+
+            // XMPデータをJPEGのAPP1セグメントとして埋め込む
+            insertXMP(jpegBlob, xmpData) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const jpegData = new Uint8Array(e.target.result);
+
+                            // JPEGマーカーを探す (0xFF 0xE1 = APP1)
+                            const insertPosition = this.findXMPInsertPosition(jpegData);
+
+                            // XMP APP1セグメントを作成
+                            // 識別子: "http://ns.adobe.com/xap/1.0/\0"
+                            const xmpIdentifier = new TextEncoder().encode('http://ns.adobe.com/xap/1.0/\0');
+                            const xmpContent = new TextEncoder().encode(xmpData);
+
+                            // セグメント長 = 識別子長 + XMP長 + 2（長さフィールド自身）
+                            const segmentLength = xmpIdentifier.length + xmpContent.length + 2;
+
+                            // APP1セグメント: 0xFF 0xE1 + 長さ(2バイト, ビッグエンディアン) + 識別子 + XMP
+                            const xmpSegment = new Uint8Array(2 + 2 + xmpIdentifier.length + xmpContent.length);
+                            xmpSegment[0] = 0xFF;
+                            xmpSegment[1] = 0xE1;
+                            xmpSegment[2] = (segmentLength >> 8) & 0xFF;
+                            xmpSegment[3] = segmentLength & 0xFF;
+                            xmpSegment.set(xmpIdentifier, 4);
+                            xmpSegment.set(xmpContent, 4 + xmpIdentifier.length);
+
+                            // JPEGバイナリにXMPセグメントを挿入
+                            const newJpegData = new Uint8Array(jpegData.length + xmpSegment.length);
+                            newJpegData.set(jpegData.subarray(0, insertPosition), 0);
+                            newJpegData.set(xmpSegment, insertPosition);
+                            newJpegData.set(jpegData.subarray(insertPosition), insertPosition + xmpSegment.length);
+
+                            resolve(new Blob([newJpegData], {type: 'image/jpeg'}));
+                        } catch (error) {
+                            reject(error);
+                        }
+                    };
+                    reader.onerror = () => reject(reader.error);
+                    reader.readAsArrayBuffer(jpegBlob);
+                });
+            }
+
+            // XMPセグメントを挿入する位置を探す（SOIの後、最初のAPP1の前）
+            findXMPInsertPosition(jpegData) {
+                // JPEGは 0xFF 0xD8 (SOI) で始まる
+                if (jpegData[0] !== 0xFF || jpegData[1] !== 0xD8) {
+                    throw new Error('無効なJPEGフォーマット');
+                }
+
+                let pos = 2; // SOIの次から
+                while (pos < jpegData.length - 1) {
+                    if (jpegData[pos] === 0xFF) {
+                        const marker = jpegData[pos + 1];
+
+                        // 0xFF 0xFF はパディング、スキップ
+                        if (marker === 0xFF) {
+                            pos++;
+                            continue;
+                        }
+
+                        // 0xE0-EF = APP0-APP15
+                        // 0xE0 = APP0 (通常はJFIF)
+                        // 0xE1 = APP1 (EXIF/XMP)
+                        // XMPはSOIの直後に挿入するのが一般的
+                        // 最初のセグメントの前（pos=2の位置）に挿入
+                        return 2;
+                    }
+                    pos++;
+                }
+
+                // 見つからない場合はSOIの後
+                return 2;
+            }
+
+            async highQualityResize(sourceCanvas, maxSize) {
+                const scale = Math.min(maxSize / sourceCanvas.width, maxSize / sourceCanvas.height, 1);
+                const targetWidth = Math.floor(sourceCanvas.width * scale);
+                const targetHeight = Math.floor(sourceCanvas.height * scale);
+                
+                // 縮小が必要ない場合は元のキャンバスを返す
+                if (scale >= 1) {
+                    return sourceCanvas;
+                }
+                
+                // ImageBitmap APIを使用した高品質リサイズを試行
+                if (typeof createImageBitmap !== 'undefined') {
+                    try {
+                        const imageBitmap = await createImageBitmap(sourceCanvas, {
+                            resizeWidth: targetWidth,
+                            resizeHeight: targetHeight,
+                            resizeQuality: 'high'
+                        });
+                        
+                        const canvas = document.createElement('canvas');
+                        canvas.width = targetWidth;
+                        canvas.height = targetHeight;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(imageBitmap, 0, 0);
+                        imageBitmap.close();
+                        
+                        return canvas;
+                    } catch (error) {
+                        console.warn('ImageBitmap APIが利用できません、段階的縮小を使用します');
+                    }
+                }
+                
+                // 段階的縮小（ステップダウン）を実行
+                return this.stepDownResize(sourceCanvas, targetWidth, targetHeight);
+            }
+
+            stepDownResize(sourceCanvas, targetWidth, targetHeight) {
+                let currentCanvas = sourceCanvas;
+                let currentWidth = sourceCanvas.width;
+                let currentHeight = sourceCanvas.height;
+                
+                // 50%より小さい縮小の場合は段階的に縮小
+                while (currentWidth > targetWidth * 2 || currentHeight > targetHeight * 2) {
+                    const stepWidth = Math.max(targetWidth, Math.floor(currentWidth * 0.5));
+                    const stepHeight = Math.max(targetHeight, Math.floor(currentHeight * 0.5));
+                    
+                    const stepCanvas = document.createElement('canvas');
+                    stepCanvas.width = stepWidth;
+                    stepCanvas.height = stepHeight;
+                    const stepCtx = stepCanvas.getContext('2d');
+                    
+                    // 高品質設定を適用
+                    stepCtx.imageSmoothingEnabled = true;
+                    stepCtx.imageSmoothingQuality = 'high';
+                    
+                    stepCtx.drawImage(currentCanvas, 0, 0, stepWidth, stepHeight);
+                    
+                    // 前のキャンバスがソースキャンバスでない場合は削除
+                    if (currentCanvas !== sourceCanvas) {
+                        currentCanvas = null;
+                    }
+                    
+                    currentCanvas = stepCanvas;
+                    currentWidth = stepWidth;
+                    currentHeight = stepHeight;
+                }
+                
+                // 最終的なリサイズ
+                if (currentWidth !== targetWidth || currentHeight !== targetHeight) {
+                    const finalCanvas = document.createElement('canvas');
+                    finalCanvas.width = targetWidth;
+                    finalCanvas.height = targetHeight;
+                    const finalCtx = finalCanvas.getContext('2d');
+                    
+                    // 最高品質設定を適用
+                    finalCtx.imageSmoothingEnabled = true;
+                    finalCtx.imageSmoothingQuality = 'high';
+                    
+                    finalCtx.drawImage(currentCanvas, 0, 0, targetWidth, targetHeight);
+                    
+                    if (currentCanvas !== sourceCanvas) {
+                        currentCanvas = null;
+                    }
+                    
+                    return finalCanvas;
+                }
+                
+                return currentCanvas;
+            }
+
+            fallbackResize(photo, index, maxSize, quality, resolve) {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // リサイズ計算
+                const scale = Math.min(maxSize / photo.width, maxSize / photo.height, 1);
+                canvas.width = Math.floor(photo.width * scale);
+                canvas.height = Math.floor(photo.height * scale);
+                
+                // 画像データを一時キャンバスに描画
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = photo.width;
+                tempCanvas.height = photo.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.putImageData(photo.currentImageData, 0, 0);
+                
+                // 高品質設定を適用
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                
+                // リサイズして描画
+                ctx.drawImage(tempCanvas, 0, 0, canvas.width, canvas.height);
+
+                // JPEG として出力
+                canvas.toBlob((blob) => {
+                    this.downloadBlobWithEXIF(blob, photo, index, resolve);
+                }, 'image/jpeg', quality);
+            }
+
+            saveToUndoStack() {
+                try {
+                    // メモリ使用量をチェック（概算）
+                    const totalPixels = this.photos.reduce((sum, photo) => 
+                        sum + (photo.width * photo.height), 0);
+                    const estimatedMemoryMB = totalPixels * 4 * 2 / 1024 / 1024; // current + original の2倍
+                    
+                    // 50MB以上の場合はアンドゥ回数を1回に制限
+                    const maxSteps = estimatedMemoryMB > 50 ? 1 : this.maxUndoSteps;
+                    
+                    if (this.undoStack.length >= maxSteps) {
+                        this.undoStack.shift();
+                    }
+                    
+                    // ImageDataを効率的にコピー
+                    const snapshot = this.photos.map(photo => ({
+                        id: photo.id,
+                        width: photo.width,
+                        height: photo.height,
+                        rotation: photo.rotation,
+                        isApproved: photo.isApproved,
+                        autoLevelApplied: photo.autoLevelApplied,
+                        cropMode: photo.cropMode,
+                        aspectRatio: photo.aspectRatio,
+                        cropData: photo.cropData ? {...photo.cropData} : null,
+                        currentImageData: new ImageData(
+                            new Uint8ClampedArray(photo.currentImageData.data),
+                            photo.currentImageData.width,
+                            photo.currentImageData.height
+                        ),
+                        originalImageData: photo.originalImageData, // 元画像は共有
+                        originalFile: photo.originalFile,
+                        exifData: photo.exifData ? {...photo.exifData} : null,
+                        hasExif: photo.hasExif
+                    }));
+                    
+                    this.undoStack.push(snapshot);
+                    this.updateUndoButton();
+                } catch (error) {
+                    console.warn('アンドゥスタックの保存に失敗:', error);
+                }
+            }
+
+            undo() {
+                if (this.undoStack.length > 0) {
+                    const previousState = this.undoStack.pop();
+                    this.photos = previousState;
+                    this.showPhotosList();
+                    this.updateUndoButton();
+                    this.showToast('操作を取り消しました', 'info');
+                }
+            }
+
+            updateUndoButton() {
+                const undoBtn = document.getElementById('undo-btn');
+                const undoCount = document.getElementById('undo-count');
+                if (undoBtn && undoCount) {
+                    undoBtn.disabled = this.undoStack.length === 0;
+                    undoCount.textContent = this.undoStack.length;
+                }
+            }
+
+            showProgress(show) {
+                const progressBar = document.getElementById('progress-bar');
+                progressBar.style.display = show ? 'block' : 'none';
+                if (!show) {
+                    this.updateProgress(0);
+                }
+            }
+
+            updateProgress(percent) {
+                const progressFill = document.getElementById('progress-fill');
+                progressFill.style.width = `${percent}%`;
+            }
+
+            showToast(message, type = 'success') {
+                const toast = document.getElementById('toast');
+                toast.textContent = message;
+                toast.className = `toast ${type}`;
+                toast.classList.add('show');
+                
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 3000);
+            }
+
+            // サムネイルパネル関連メソッド
+            toggleThumbnailPanel() {
+                this.thumbnailPanelVisible = !this.thumbnailPanelVisible;
+                const panel = document.getElementById('thumbnail-panel');
+                const toggleBtn = document.getElementById('thumbnail-toggle-btn');
+                
+                if (this.thumbnailPanelVisible) {
+                    panel.classList.add('visible');
+                    toggleBtn.textContent = '✕';
+                    this.generateThumbnails();
+                } else {
+                    panel.classList.remove('visible');
+                    toggleBtn.textContent = '📋';
+                }
+            }
+
+            generateThumbnails() {
+                if (!this.thumbnailPanelVisible || this.photos.length === 0) return;
+                
+                const thumbnailList = document.getElementById('thumbnail-list');
+                thumbnailList.innerHTML = '';
+                
+                this.photos.forEach((photo, index) => {
+                    const thumbnailItem = this.createThumbnailItem(photo, index);
+                    thumbnailList.appendChild(thumbnailItem);
+                });
+                
+                this.updateThumbnailSelection();
+            }
+
+            createThumbnailItem(photo, index) {
+                const item = document.createElement('div');
+                item.className = 'thumbnail-item';
+                item.dataset.index = index;
+                
+                // 一時キャンバスに現在の画像データを描画
+                const sourceCanvas = document.createElement('canvas');
+                sourceCanvas.width = photo.width;
+                sourceCanvas.height = photo.height;
+                const sourceCtx = sourceCanvas.getContext('2d');
+                sourceCtx.putImageData(photo.currentImageData, 0, 0);
+                
+                // サムネイルサイズを計算（アスペクト比を維持、高画質のため200px）
+                const maxSize = 200;
+                const scale = Math.min(maxSize / photo.width, maxSize / photo.height);
+                const thumbnailWidth = Math.floor(photo.width * scale);
+                const thumbnailHeight = Math.floor(photo.height * scale);
+                
+                // 高品質サムネイル生成（段階的縮小使用）
+                const thumbnailCanvas = this.createHighQualityThumbnail(sourceCanvas, thumbnailWidth, thumbnailHeight);
+                
+                // canvas を img 要素に変換（最高品質で出力）
+                const img = document.createElement('img');
+                img.className = 'thumbnail-image';
+                img.src = thumbnailCanvas.toDataURL('image/jpeg', 1.0);
+                img.alt = `写真 ${index + 1}`;
+                
+                // インデックス番号表示
+                const indexDiv = document.createElement('div');
+                indexDiv.className = 'thumbnail-index';
+                indexDiv.textContent = index + 1;
+                
+                // 不採用の場合はクラスを追加
+                if (!photo.isApproved) {
+                    item.classList.add('rejected');
+                }
+                
+                // クリックイベントを追加
+                item.addEventListener('click', () => {
+                    this.jumpToPhoto(index);
+                });
+                
+                item.appendChild(img);
+                item.appendChild(indexDiv);
+                
+                return item;
+            }
+
+            createHighQualityThumbnail(sourceCanvas, targetWidth, targetHeight) {
+                // サムネイル用に最適化された高品質縮小処理
+                let currentCanvas = sourceCanvas;
+                let currentWidth = sourceCanvas.width;
+                let currentHeight = sourceCanvas.height;
+                
+                // 段階的縮小（50%ずつ）
+                while (currentWidth > targetWidth * 2 || currentHeight > targetHeight * 2) {
+                    const stepWidth = Math.max(targetWidth, Math.floor(currentWidth * 0.5));
+                    const stepHeight = Math.max(targetHeight, Math.floor(currentHeight * 0.5));
+                    
+                    const stepCanvas = document.createElement('canvas');
+                    stepCanvas.width = stepWidth;
+                    stepCanvas.height = stepHeight;
+                    const stepCtx = stepCanvas.getContext('2d');
+                    
+                    // 最高品質設定
+                    stepCtx.imageSmoothingEnabled = true;
+                    stepCtx.imageSmoothingQuality = 'high';
+                    
+                    stepCtx.drawImage(currentCanvas, 0, 0, stepWidth, stepHeight);
+                    
+                    // 前のキャンバスがソースでない場合は削除
+                    if (currentCanvas !== sourceCanvas) {
+                        currentCanvas = null;
+                    }
+                    
+                    currentCanvas = stepCanvas;
+                    currentWidth = stepWidth;
+                    currentHeight = stepHeight;
+                }
+                
+                // 最終的なサムネイルサイズに調整
+                if (currentWidth !== targetWidth || currentHeight !== targetHeight) {
+                    const finalCanvas = document.createElement('canvas');
+                    finalCanvas.width = targetWidth;
+                    finalCanvas.height = targetHeight;
+                    const finalCtx = finalCanvas.getContext('2d');
+                    
+                    // 最高品質設定でシャープネス向上
+                    finalCtx.imageSmoothingEnabled = true;
+                    finalCtx.imageSmoothingQuality = 'high';
+                    
+                    finalCtx.drawImage(currentCanvas, 0, 0, targetWidth, targetHeight);
+                    
+                    if (currentCanvas !== sourceCanvas) {
+                        currentCanvas = null;
+                    }
+                    
+                    return finalCanvas;
+                }
+                
+                return currentCanvas;
+            }
+
+            jumpToPhoto(index) {
+                const photoItem = document.getElementById(`photo-${index}`);
+                if (photoItem) {
+                    photoItem.scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'center' 
+                    });
+                    this.currentPhotoIndex = index;
+                    this.updateSelection();
+                    this.updateThumbnailSelection();
+                    
+                    this.showToast(`写真 ${index + 1} に移動しました`, 'info');
+                }
+            }
+
+            updateThumbnailSelection() {
+                if (!this.thumbnailPanelVisible) return;
+                
+                const thumbnailItems = document.querySelectorAll('.thumbnail-item');
+                thumbnailItems.forEach((item, index) => {
+                    if (index === this.currentPhotoIndex) {
+                        item.classList.add('active');
+                    } else {
+                        item.classList.remove('active');
+                    }
+                });
+            }
+
+            updateThumbnailApprovalState(index) {
+                if (!this.thumbnailPanelVisible) return;
+                
+                const thumbnailItem = document.querySelector(`.thumbnail-item[data-index="${index}"]`);
+                if (thumbnailItem) {
+                    if (this.photos[index].isApproved) {
+                        thumbnailItem.classList.remove('rejected');
+                    } else {
+                        thumbnailItem.classList.add('rejected');
+                    }
+                }
+            }
+
+            updateThumbnailImage(index) {
+                if (!this.thumbnailPanelVisible) return;
+                
+                const thumbnailItem = document.querySelector(`.thumbnail-item[data-index="${index}"]`);
+                if (!thumbnailItem) return;
+                
+                const photo = this.photos[index];
+                const img = thumbnailItem.querySelector('.thumbnail-image');
+                if (!img) return;
+                
+                // 一時キャンバスに現在の画像データを描画
+                const sourceCanvas = document.createElement('canvas');
+                sourceCanvas.width = photo.width;
+                sourceCanvas.height = photo.height;
+                const sourceCtx = sourceCanvas.getContext('2d');
+                sourceCtx.putImageData(photo.currentImageData, 0, 0);
+                
+                // サムネイルサイズを計算（アスペクト比を維持、高画質のため200px）
+                const maxSize = 200;
+                const scale = Math.min(maxSize / photo.width, maxSize / photo.height);
+                const thumbnailWidth = Math.floor(photo.width * scale);
+                const thumbnailHeight = Math.floor(photo.height * scale);
+                
+                // 高品質サムネイル生成
+                const thumbnailCanvas = this.createHighQualityThumbnail(sourceCanvas, thumbnailWidth, thumbnailHeight);
+
+                // 画像を更新（最高品質で出力）
+                img.src = thumbnailCanvas.toDataURL('image/jpeg', 1.0);
+            }
+
+        }
+
+        // アプリケーション初期化
+        const photoEditor = new PhotoEditor();
+    </script>
+</body>
+</html>
