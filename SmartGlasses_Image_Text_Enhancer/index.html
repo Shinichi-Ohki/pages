@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta http-equiv="Cache-Control" content="no-cache">
+  <title>Text Enhancer for Smart Glasses</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Text Enhancer</h1>
+      <p class="subtitle">for GUIDE01 (624×405)</p>
+    </header>
+
+    <main>
+      <!-- Upload Section -->
+      <section id="upload-section">
+        <label for="image-input" class="upload-area">
+          <span class="upload-icon">📷</span>
+          <span class="upload-text">画像をアップロード</span>
+          <span class="upload-hint">タップして選択</span>
+        </label>
+        <input type="file" id="image-input" accept="image/*" hidden>
+      </section>
+
+      <!-- Preview Section -->
+      <section id="preview-section" class="hidden">
+        <div class="preview-container full-size">
+          <h2>元画像</h2>
+          <canvas id="original-canvas"></canvas>
+        </div>
+
+        <!-- Settings Section -->
+        <div class="settings-container">
+          <h2>設定</h2>
+          <div class="setting-row">
+            <label for="skip-start">先頭スキップ</label>
+            <div class="slider-wrapper">
+              <input type="range" id="skip-start" min="0" max="10" value="2">
+              <span id="skip-start-value">2行</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <label for="skip-end">末尾スキップ</label>
+            <div class="slider-wrapper">
+              <input type="range" id="skip-end" min="0" max="10" value="0">
+              <span id="skip-end-value">0行</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <label for="lines-per-page">1ページ行数</label>
+            <div class="slider-wrapper">
+              <input type="range" id="lines-per-page" min="3" max="12" value="7">
+              <span id="lines-per-page-value">7行</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="preview-container">
+          <h2>出力プレビュー (624×405)</h2>
+          <canvas id="output-canvas"></canvas>
+        </div>
+      </section>
+
+      <!-- Progress Section -->
+      <section id="progress-section" class="hidden">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <p id="progress-text">初期化中...</p>
+      </section>
+
+      <!-- Action Buttons -->
+      <section id="action-section" class="hidden">
+        <button id="process-btn" class="btn-primary">テキスト拡大処理</button>
+        <button id="download-btn" class="btn-secondary">ダウンロード</button>
+        <button id="share-btn" class="btn-secondary">共有</button>
+      </section>
+    </main>
+
+    <footer>
+      <p>Powered by Tesseract.js</p>
+    </footer>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="app.js?v=46"></script>
+</body>
+</html>
