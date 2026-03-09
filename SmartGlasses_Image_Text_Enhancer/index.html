@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta http-equiv="Cache-Control" content="no-cache">
   <title>Text Enhancer for Smart Glasses</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
   <div id="app">
@@ -58,6 +58,12 @@
               <span id="lines-per-page-value">7行</span>
             </div>
           </div>
+          <div class="setting-row">
+            <label for="debug-mode">枠を表示（デバッグ）</label>
+            <div class="checkbox-wrapper">
+              <input type="checkbox" id="debug-mode">
+            </div>
+          </div>
         </div>
 
         <div class="preview-container">
@@ -88,6 +94,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script src="app.js?v=46"></script>
+  <script src="app.js?v=51"></script>
 </body>
 </html>

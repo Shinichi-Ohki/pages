@@ -122,15 +122,15 @@ main {
   background: #000;
 }
 
-/* Full-size original image with scroll */
+/* Full-size original image - fit to screen width */
 .preview-container.full-size {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow-x: hidden;
 }
 
 .preview-container.full-size canvas {
-  width: auto;
-  max-width: none;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
 }
 
 /* Settings Section */

@@ -21,11 +21,13 @@ const linesPerPageSlider = document.getElementById('lines-per-page');
 const skipStartValue = document.getElementById('skip-start-value');
 const skipEndValue = document.getElementById('skip-end-value');
 const linesPerPageValue = document.getElementById('lines-per-page-value');
+const debugModeCheckbox = document.getElementById('debug-mode');
 
 // State
 let originalImage = null;
 let worker = null;
 let outputCanvases = []; // Multiple output canvases
+let lastOcrData = null; // Store OCR data for debug toggle
 
 // Initialize
 function init() {
@@ -43,6 +45,15 @@ function init() {
   });
   linesPerPageSlider.addEventListener('input', () => {
     linesPerPageValue.textContent = `${linesPerPageSlider.value}行`;
+  });
+
+  // Debug mode checkbox - toggle borders on both images
+  debugModeCheckbox.addEventListener('change', () => {
+    if (lastOcrData) {
+      drawOcrDebugBoxes(lastOcrData, debugModeCheckbox.checked);
+      // Re-process output to show/hide borders
+      drawEnhancedImage(lastOcrData);
+    }
   });
 }
 
@@ -70,6 +81,30 @@ function drawOriginalImage(img) {
   originalCanvas.width = img.width;
   originalCanvas.height = img.height;
   ctx.drawImage(img, 0, 0, img.width, img.height);
+}
+
+// Debug: Draw OCR bounding boxes on original image
+function drawOcrDebugBoxes(ocrData, show) {
+  const ctx = originalCanvas.getContext('2d');
+
+  // Redraw original image first to clear previous boxes
+  ctx.drawImage(originalImage, 0, 0, originalCanvas.width, originalCanvas.height);
+
+  if (!show || !ocrData.lines) return;
+
+  ctx.strokeStyle = 'red';
+  ctx.lineWidth = 2;
+
+  ocrData.lines.forEach(line => {
+    if (!line.bbox) return;
+
+    const x = line.bbox.x0;
+    const y = line.bbox.y0;
+    const width = line.bbox.x1 - line.bbox.x0;
+    const height = line.bbox.y1 - line.bbox.y0;
+
+    ctx.strokeRect(x, y, width, height);
+  });
 }
 
 // Show preview section
@@ -100,6 +135,12 @@ async function processImage() {
     updateProgress(50, 'テキストを認識中...');
     const { data } = await worker.recognize(originalImage);
     updateProgress(80, '画像を生成中...');
+
+    // Store OCR data for debug toggle
+    lastOcrData = data;
+
+    // Draw debug boxes on original image if enabled
+    drawOcrDebugBoxes(data, debugModeCheckbox && debugModeCheckbox.checked);
 
     drawEnhancedImage(data);
     updateProgress(100, '完了！');
@@ -157,8 +198,8 @@ function drawEnhancedImage(ocrData) {
     return;
   }
 
-  // Merge overlapping lines
-  lines = mergeOverlappingLines(lines, 5 * UPSCALE_FACTOR);
+  // Merge overlapping lines (disabled - was merging too aggressively)
+  // lines = mergeOverlappingLines(lines, 5 * UPSCALE_FACTOR);
 
   // Skip lines based on slider settings (before merging short lines)
   const skipStart = parseInt(skipStartSlider.value);
@@ -193,21 +234,25 @@ function drawEnhancedImage(ocrData) {
     // Calculate scale for each line based on uniform height (height priority)
     // but also ensure it fits within width
     const lineScales = pageLines.map(line => {
-      const scaleY = uniformLineHeight / line.height;
-
-      // For merged lines, calculate total width of all parts
-      let totalWidth = line.width;
+      // For merged lines, calculate width based on unified height and use scaleX only
       if (line.parts && line.parts.length > 1) {
-        totalWidth = line.parts.reduce((sum, part) => sum + part.width, 0);
+        const totalWidth = line.parts.reduce((sum, part) => {
+          return sum + part.width * (uniformLineHeight / part.height);
+        }, 0);
+        // For merged lines, only consider width constraint
+        // But cap at 1 to not exceed uniformLineHeight
+        return Math.min(availableWidth / totalWidth, 1, 4);
+      } else {
+        const scaleY = uniformLineHeight / line.height;
+        const scaleX = availableWidth / line.width;
+        // Use the smaller scale to fit both height and width
+        return Math.min(scaleY, scaleX, 4);
       }
-
-      const scaleX = availableWidth / totalWidth;
-      // Use the smaller scale to fit both height and width
-      return Math.min(scaleY, scaleX, 4);
     });
 
     // Draw lines with sharp scaling
     let currentY = padding;
+    const showDebugBorders = debugModeCheckbox && debugModeCheckbox.checked;
 
     pageLines.forEach((line, index) => {
       const scale = lineScales[index];
@@ -215,22 +260,25 @@ function drawEnhancedImage(ocrData) {
 
       // Check if line has multiple parts (merged short lines)
       if (line.parts && line.parts.length > 1) {
-        // Calculate total width of all parts
+        // Draw all parts with the same height (dstHeight * scale), preserving aspect ratio
+        // Calculate total width based on unified height and scale
         let totalPartsWidth = 0;
         line.parts.forEach(part => {
-          totalPartsWidth += part.width * scale;
+          const partScale = dstHeight / part.height;
+          totalPartsWidth += part.width * partScale * scale;
         });
 
         // Center the group horizontally
         let partX = (OUTPUT_WIDTH - totalPartsWidth) / 2;
 
-        // Draw each part centered vertically within the line
+        // Draw each part with unified height
         line.parts.forEach(part => {
-          const partDstWidth = part.width * scale;
-          const partDstHeight = part.height * scale;
+          const partScale = dstHeight / part.height;
+          const partDstWidth = part.width * partScale * scale;
+          const partDstHeight = dstHeight * scale;
 
-          // Center each part vertically within the line height
-          const partY = currentY + (dstHeight - partDstHeight) / 2;
+          // Center vertically within the line
+          const partY = currentY + (dstHeight * scale - partDstHeight) / 2;
 
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(
@@ -239,6 +287,13 @@ function drawEnhancedImage(ocrData) {
             partX, partY, partDstWidth, partDstHeight
           );
           ctx.imageSmoothingEnabled = true;
+
+          // Debug: draw border around part
+          if (showDebugBorders) {
+            ctx.strokeStyle = 'blue';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(partX, partY, partDstWidth, partDstHeight);
+          }
 
           partX += partDstWidth;
         });
@@ -254,6 +309,13 @@ function drawEnhancedImage(ocrData) {
           dstX, currentY, dstWidth, dstHeight
         );
         ctx.imageSmoothingEnabled = true;
+
+        // Debug: draw border around line
+        if (showDebugBorders) {
+          ctx.strokeStyle = 'blue';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(dstX, currentY, dstWidth, dstHeight);
+        }
       }
 
       currentY += dstHeight;
@@ -300,12 +362,13 @@ function createOutputCanvas() {
   return canvas;
 }
 
-// Merge short lines that are on the same horizontal level
+// Merge lines that are on the same horizontal level (if total width fits)
 function mergeShortLines(lines, imageWidth) {
   if (lines.length === 0) return lines;
 
-  const SHORT_WIDTH_THRESHOLD = imageWidth * 0.35; // 35% of image width
   const Y_THRESHOLD = 150 * UPSCALE_FACTOR; // Y coordinate tolerance
+
+  console.log('mergeShortLines:', lines.length, 'lines, Y threshold:', Y_THRESHOLD);
 
   const merged = [];
   let current = { ...lines[0], parts: [{ ...lines[0] }] };
@@ -313,27 +376,31 @@ function mergeShortLines(lines, imageWidth) {
 
   for (let i = 1; i < lines.length; i++) {
     const next = lines[i];
-    const currentBottom = current.y + current.height;
-    const nextBottom = next.y + next.height;
 
     // Use the last part's Y for comparison (to allow continuous merging)
     const lastPart = current.parts[current.parts.length - 1];
     const lastPartY = lastPart.y;
 
-    // Check if next line is short and on similar Y level
-    const nextShort = next.width < SHORT_WIDTH_THRESHOLD;
+    // Check if next line is on similar Y level
     const similarY = Math.abs(lastPartY - next.y) < Y_THRESHOLD;
+
+    // Check if next line is to the right of current line (with tolerance for OCR errors)
+    const isToRight = next.x >= lastPart.x - 50 * UPSCALE_FACTOR;
 
     // Calculate total width of parts (without gaps) for width check
     const totalPartsWidth = current.parts.reduce((sum, part) => sum + part.width, 0) + next.width;
     const fitsWidth = totalPartsWidth < imageWidth * 0.95;
 
-    if (nextShort && similarY && fitsWidth) {
+    console.log(`Line ${i}: width=${next.width.toFixed(0)}, Ydiff=${Math.abs(lastPartY - next.y).toFixed(0)} similarY=${similarY}, X=${next.x.toFixed(0)}>=${(lastPart.x - 10 * UPSCALE_FACTOR).toFixed(0)} isToRight=${isToRight}, totalW=${totalPartsWidth.toFixed(0)} fitsW=${fitsWidth}`);
+
+    if (similarY && fitsWidth && isToRight) {
+      console.log('  -> Merged!');
       // Merge: add next as a part
       current.parts.push({ ...next });
       // Expand bounding box (width)
       current.width = Math.max(current.x + current.width, next.x + next.width) - current.x;
-      // Keep height as first part's height (treat merged lines as single line)
+      // Use maximum height of all parts for scale calculation
+      current.height = Math.max(current.height, next.height);
       // Update y to minimum
       current.y = Math.min(current.y, next.y);
     } else {
@@ -344,6 +411,7 @@ function mergeShortLines(lines, imageWidth) {
   }
 
   merged.push(current);
+  console.log('mergeShortLines result:', merged.length, 'lines');
   return merged;
 }
 
