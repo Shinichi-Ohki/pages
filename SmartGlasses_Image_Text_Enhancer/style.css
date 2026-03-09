@@ -310,3 +310,22 @@ footer {
   height: auto;
   display: block;
 }
+
+/* Per-page download button */
+.download-page-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.download-page-btn:active {
+  background: var(--primary-dark);
+}

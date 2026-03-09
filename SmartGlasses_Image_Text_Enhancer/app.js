@@ -438,15 +438,22 @@ function displayOutputCanvases() {
     canvasWrapper.appendChild(canvas);
     container.appendChild(canvasWrapper);
 
+    // Add download button for each page
+    const downloadPageBtn = document.createElement('button');
+    downloadPageBtn.className = 'download-page-btn';
+    downloadPageBtn.textContent = `ページ${index + 1}を保存`;
+    downloadPageBtn.addEventListener('click', () => downloadSingleImage(canvas, index));
+    container.appendChild(downloadPageBtn);
+
     parent.insertBefore(container, outputCanvas);
   });
 
   // Hide the original output canvas
   outputCanvas.classList.add('hidden');
 
-  // Enable download/share buttons
-  downloadBtn.disabled = false;
+  // Enable share button (main download button is now per-page)
   shareBtn.disabled = false;
+  downloadBtn.classList.add('hidden');
 }
 
 // Merge overlapping lines
@@ -497,6 +504,19 @@ function drawScaledImage(ctx, img) {
 function updateProgress(percent, text) {
   progressFill.style.width = `${percent}%`;
   progressText.textContent = text;
+}
+
+// Download single image
+async function downloadSingleImage(canvas, index) {
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `enhanced_page${index + 1}_${Date.now()}.png`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // Download images (as zip or individual)
