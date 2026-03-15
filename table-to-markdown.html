@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Table → Markdown</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+JP:wght@400;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f6fa;
+    --surface: #ffffff;
+    --border: #d0d4e8;
+    --accent: #2a6be0;
+    --accent2: #c0155c;
+    --text: #1a1d2e;
+    --text-muted: #6b7094;
+    --cell-bg: #ffffff;
+    --cell-hover: #eef1fb;
+    --header-bg: #e8edfc;
+    --thead-color: #1a4aaa;
+    --thead-bg: #dce8ff;
+    --thead-border: #b0c8f8;
+    --tbody-odd: #ffffff;
+    --tbody-even: #f0f4ff;
+    --output-bg: #f0f4ff;
+    --output-color: #1a6b1a;
+  }
+
+  [data-theme="dark"] {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2e3147;
+    --accent: #5b8dee;
+    --accent2: #e05b8d;
+    --text: #d4d8f0;
+    --text-muted: #6b7094;
+    --cell-bg: #13162000;
+    --cell-hover: #1e2235;
+    --header-bg: #1e2640;
+    --thead-color: #8ab4f8;
+    --thead-bg: #1e264044;
+    --thead-border: #2e3147;
+    --tbody-odd: #13162000;
+    --tbody-even: #1e223566;
+    --output-bg: #0a0c14;
+    --output-color: #a8d5a2;
+  }
+
+  /* 青系：Deuteranopia（赤緑色盲）向け */
+  [data-theme="blue"] {
+    --bg: #f0f4ff;
+    --surface: #ffffff;
+    --border: #b0c4f0;
+    --accent: #0055cc;
+    --accent2: #ff8c00;
+    --text: #001a4d;
+    --text-muted: #4466aa;
+    --cell-bg: #ffffff;
+    --cell-hover: #dde8ff;
+    --header-bg: #ccdaff;
+    --thead-color: #002899;
+    --thead-bg: #b8ccff;
+    --thead-border: #88aaee;
+    --tbody-odd: #ffffff;
+    --tbody-even: #e8eeff;
+    --output-bg: #e0e8ff;
+    --output-color: #003399;
+  }
+
+  /* ハイコントラスト */
+  [data-theme="hc"] {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --border: #000000;
+    --accent: #0000cc;
+    --accent2: #cc0000;
+    --text: #000000;
+    --text-muted: #333333;
+    --cell-bg: #ffffff;
+    --cell-hover: #ffff99;
+    --header-bg: #ffffff;
+    --thead-color: #000000;
+    --thead-bg: #000000;
+    --thead-border: #000000;
+    --tbody-odd: #ffffff;
+    --tbody-even: #eeeeee;
+    --output-bg: #ffffff;
+    --output-color: #000000;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  header h1 {
+    font-size: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+
+  .tag {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    background: #5b8dee22;
+    color: var(--accent);
+    border: 1px solid #5b8dee44;
+    padding: 2px 8px;
+    border-radius: 99px;
+  }
+
+  .controls {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  button {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 12px;
+    background: var(--surface);
+    color: var(--text-muted);
+    transition: all 0.15s;
+  }
+
+  button:hover { border-color: var(--accent); color: var(--accent); }
+
+  button.primary {
+    background: #5b8dee22;
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .split {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .pane-label {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-muted);
+    padding: 8px 16px 6px;
+    letter-spacing: 0.08em;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .pane-label .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .pane:last-child .pane-label .dot { background: var(--accent2); }
+
+  .divider {
+    height: 4px;
+    background: var(--border);
+    cursor: row-resize;
+    flex-shrink: 0;
+    position: relative;
+    transition: background 0.15s;
+  }
+  .divider:hover { background: var(--accent); }
+
+  /* TABLE */
+  .table-wrapper {
+    overflow: auto;
+    flex: 1;
+    padding: 12px;
+  }
+
+  table {
+    border-collapse: separate;
+    border-spacing: 3px;
+    min-width: 100%;
+  }
+
+  th, td {
+    position: relative;
+  }
+
+  .cell-input {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 6px 8px;
+    width: 100%;
+    min-width: 80px;
+    outline: none;
+    border-radius: 4px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .cell-input:hover {
+    border-color: var(--border);
+    background: var(--cell-hover);
+  }
+
+  .cell-input:focus {
+    border-color: var(--accent);
+    background: var(--cell-hover);
+  }
+
+  thead .cell-input {
+    font-weight: 600;
+    color: var(--thead-color);
+    background: var(--thead-bg);
+    border-color: var(--thead-border);
+  }
+
+  tbody tr:nth-child(odd) .cell-input {
+    background: var(--tbody-odd);
+  }
+
+  tbody tr:nth-child(even) .cell-input {
+    background: var(--tbody-even);
+  }
+
+  thead .cell-input:focus {
+    border-color: var(--accent);
+  }
+
+  .align-btn {
+    position: absolute;
+    top: 50%; right: 6px;
+    transform: translateY(-50%);
+    font-size: 15px;
+    padding: 3px 7px;
+    border-radius: 6px;
+    opacity: 0;
+    background: #2a6be022;
+    border: 1px solid #2a6be055;
+    color: var(--accent);
+    transition: opacity 0.15s, background 0.15s;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: pointer;
+    z-index: 2;
+  }
+
+  th:hover .align-btn { opacity: 1; }
+  .align-btn:hover { background: #2a6be044 !important; }
+
+  /* OUTPUT */
+  .output-wrapper {
+    flex: 1;
+    padding: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  textarea {
+    flex: 1;
+    background: var(--output-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--output-color);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    padding: 12px 14px;
+    resize: none;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  textarea:focus { border-color: var(--accent2); }
+
+  .copy-toast {
+    position: fixed;
+    bottom: 20px; right: 20px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 8px 16px;
+    border-radius: 8px;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.2s;
+    pointer-events: none;
+  }
+
+  .copy-toast.show { opacity: 1; transform: translateY(0); }
+
+  [data-theme="hc"] thead .cell-input {
+    color: #ffffff;
+    border-color: #000000;
+  }
+
+  [data-theme="hc"] .cell-input:hover {
+    background: #ffff00;
+    color: #000000;
+    border-color: #000000;
+  }
+
+  [data-theme="hc"] .cell-input:focus {
+    background: #ffff00;
+    color: #000000;
+    border-color: #0000cc;
+    outline: 2px solid #0000cc;
+  }
+
+  [data-theme="hc"] thead .cell-input:hover,
+  [data-theme="hc"] thead .cell-input:focus {
+    color: #000000;
+  }
+
+  /* テーマボタン */
+  .theme-btns {
+    display: flex;
+    gap: 4px;
+    margin-left: 8px;
+  }
+
+  .theme-btn {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    padding: 0;
+    transition: border-color 0.15s, transform 0.1s;
+  }
+
+  .theme-btn:hover { transform: scale(1.2); }
+  .theme-btn.active { border-color: var(--accent); }
+
+  .theme-btn[data-t="light"] { background: linear-gradient(135deg, #f5f6fa, #dce8ff); }
+  .theme-btn[data-t="dark"]  { background: linear-gradient(135deg, #1a1d27, #5b8dee); }
+  .theme-btn[data-t="blue"]  { background: linear-gradient(135deg, #b8ccff, #ff8c00 200%); }
+  .theme-btn[data-t="hc"]    { background: linear-gradient(135deg, #ffffff 50%, #000000 50%); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>table → markdown</h1>
+  <span class="tag">realtime</span>
+  <div class="theme-btns">
+    <button class="theme-btn active" data-t="light" title="Light" onclick="setTheme('light', this)"></button>
+    <button class="theme-btn" data-t="dark"  title="Dark"  onclick="setTheme('dark', this)"></button>
+    <button class="theme-btn" data-t="blue"  title="Blue (色弱対応)" onclick="setTheme('blue', this)"></button>
+    <button class="theme-btn" data-t="hc"    title="High Contrast" onclick="setTheme('hc', this)"></button>
+  </div>
+  <div class="controls">
+    <button onclick="addCol()">COL →</button>
+    <button onclick="addRow()">ROW ↓</button>
+    <button onclick="removeLastRow()">ROW ↑</button>
+    <button onclick="removeLastCol()">COL ←</button>
+    <button onclick="clearTable()">clear</button>
+    <button class="primary" onclick="copyMarkdown()">copy</button>
+  </div>
+</header>
+
+<div class="split" id="split">
+  <div class="pane" id="topPane">
+    <div class="pane-label"><span class="dot"></span>EDITOR</div>
+    <div class="table-wrapper">
+      <table id="editTable"></table>
+    </div>
+  </div>
+
+  <div class="divider" id="divider"></div>
+
+  <div class="pane" id="bottomPane">
+    <div class="pane-label"><span class="dot"></span>MARKDOWN OUTPUT</div>
+    <div class="output-wrapper">
+      <textarea id="output" readonly spellcheck="false"></textarea>
+    </div>
+  </div>
+</div>
+
+<div class="copy-toast" id="toast">copied!</div>
+
+<script>
+// --- state ---
+let rows = 3, cols = 3;
+let aligns = []; // 'left'|'center'|'right' per column
+
+function initAligns(n) {
+  while (aligns.length < n) aligns.push('left');
+  aligns = aligns.slice(0, n);
+}
+
+// --- build table ---
+function buildTable() {
+  initAligns(cols);
+  const table = document.getElementById('editTable');
+  const existing = getTableData();
+
+  table.innerHTML = '';
+
+  // header
+  const thead = table.createTHead();
+  const hrow = thead.insertRow();
+  for (let c = 0; c < cols; c++) {
+    const th = document.createElement('th');
+    const inp = makeInput(true, existing.headers[c] || '');
+    const abtn = document.createElement('button');
+    abtn.className = 'align-btn';
+    abtn.textContent = alignIcon(aligns[c]);
+    abtn.title = 'alignment: ' + aligns[c];
+    abtn.onclick = (e) => { e.stopPropagation(); cycleAlign(c, abtn); };
+    th.appendChild(inp);
+    th.appendChild(abtn);
+    hrow.appendChild(th);
+  }
+
+  // body
+  const tbody = table.createTBody();
+  for (let r = 0; r < rows; r++) {
+    const tr = tbody.insertRow();
+    for (let c = 0; c < cols; c++) {
+      const td = document.createElement('td');
+      td.appendChild(makeInput(false, (existing.body[r] || [])[c] || ''));
+      tr.appendChild(td);
+    }
+  }
+
+  renderMarkdown();
+}
+
+function makeInput(isHeader, val) {
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.className = 'cell-input';
+  inp.value = val;
+  inp.placeholder = isHeader ? 'Header' : '';
+  inp.addEventListener('input', renderMarkdown);
+  inp.addEventListener('focus', saveSnapshot);
+  inp.addEventListener('keydown', handleKeydown);
+  return inp;
+}
+
+function alignIcon(a) {
+  return a === 'center' ? '⊟' : a === 'right' ? '⊐' : '⊏';
+}
+
+function cycleAlign(col, btn) {
+  const order = ['left', 'center', 'right'];
+  const idx = order.indexOf(aligns[col]);
+  aligns[col] = order[(idx + 1) % 3];
+  btn.textContent = alignIcon(aligns[col]);
+  btn.title = 'alignment: ' + aligns[col];
+  renderMarkdown();
+}
+
+// --- get data ---
+function getTableData() {
+  const table = document.getElementById('editTable');
+  const headers = [];
+  const body = [];
+
+  const hcells = table.querySelectorAll('thead input');
+  hcells.forEach(i => headers.push(i.value));
+
+  const trows = table.querySelectorAll('tbody tr');
+  trows.forEach(tr => {
+    const row = [];
+    tr.querySelectorAll('input').forEach(i => row.push(i.value));
+    body.push(row);
+  });
+
+  return { headers, body };
+}
+
+// --- markdown ---
+function renderMarkdown() {
+  // inputのtext-alignをalignに同期
+  const table = document.getElementById('editTable');
+  const hInputs = [...table.querySelectorAll('thead input')];
+  hInputs.forEach((inp, c) => { inp.style.textAlign = aligns[c]; });
+  const trows = [...table.querySelectorAll('tbody tr')];
+  trows.forEach(tr => {
+    [...tr.querySelectorAll('input')].forEach((inp, c) => { inp.style.textAlign = aligns[c]; });
+  });
+  const { headers, body } = getTableData();
+
+  const colWidths = headers.map((h, c) => {
+    let max = Math.max(h.length, 3);
+    body.forEach(r => { if (r[c]) max = Math.max(max, r[c].length); });
+    return max;
+  });
+
+  const pad = (s, w, align) => {
+    s = s || '';
+    if (align === 'right') return s.padStart(w);
+    if (align === 'center') {
+      const total = w - s.length;
+      const l = Math.floor(total / 2), r = Math.ceil(total / 2);
+      return ' '.repeat(l) + s + ' '.repeat(r);
+    }
+    return s.padEnd(w);
+  };
+
+  const headerLine = '| ' + headers.map((h, c) => pad(h, colWidths[c], aligns[c])).join(' | ') + ' |';
+
+  const sepLine = '| ' + aligns.map((a, c) => {
+    const w = colWidths[c];
+    if (a === 'center') return ':' + '-'.repeat(w - 2) + ':';
+    if (a === 'right')  return '-'.repeat(w - 1) + ':';
+    return '-'.repeat(w);
+  }).join(' | ') + ' |';
+
+  const bodyLines = body.map(r =>
+    '| ' + r.map((cell, c) => pad(cell, colWidths[c], aligns[c])).join(' | ') + ' |'
+  );
+
+  document.getElementById('output').value = [headerLine, sepLine, ...bodyLines].join('\n');
+}
+
+// --- keyboard nav ---
+function handleKeydown(e) {
+  const inputs = [...document.querySelectorAll('#editTable input')];
+  const idx = inputs.indexOf(e.target);
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const next = inputs[idx + (e.shiftKey ? -1 : 1)];
+    if (next) next.focus(); else if (!e.shiftKey) { addRow(); setTimeout(() => inputs[inputs.length - cols] && inputs[inputs.length - cols].focus(), 10); }
+  }
+  if (e.key === 'Enter') { e.preventDefault(); const next = inputs[idx + cols]; if (next) next.focus(); }
+  if (e.key === 'ArrowRight' && e.target.selectionStart === e.target.value.length) { const n = inputs[idx + 1]; if (n) n.focus(); }
+  if (e.key === 'ArrowLeft'  && e.target.selectionStart === 0)                    { const n = inputs[idx - 1]; if (n) n.focus(); }
+  if (e.key === 'ArrowDown')  { const n = inputs[idx + cols]; if (n) n.focus(); }
+  if (e.key === 'ArrowUp')    { const n = inputs[idx - cols]; if (n) n.focus(); }
+}
+
+// --- controls ---
+function addRow()       { saveSnapshot(); rows++; buildTable(); }
+function addCol()       { saveSnapshot(); cols++; buildTable(); }
+function removeLastRow(){ saveSnapshot(); if (rows > 1) { rows--; buildTable(); } }
+function removeLastCol(){ saveSnapshot(); if (cols > 1) { cols--; aligns.pop(); buildTable(); } }
+function clearTable()   { saveSnapshot(); document.querySelectorAll('#editTable input').forEach(i => i.value = ''); renderMarkdown(); }
+
+function copyMarkdown() {
+  const text = document.getElementById('output').value;
+  navigator.clipboard.writeText(text).then(() => showToast('copied!'));
+}
+
+// --- divider drag ---
+const divider = document.getElementById('divider');
+const topPane = document.getElementById('topPane');
+const bottomPane = document.getElementById('bottomPane');
+
+let dragging = false, startY = 0, startTop = 0;
+
+divider.addEventListener('mousedown', e => {
+  dragging = true;
+  startY = e.clientY;
+  startTop = topPane.getBoundingClientRect().height;
+  document.body.style.userSelect = 'none';
+});
+
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const split = document.getElementById('split');
+  const totalH = split.getBoundingClientRect().height - divider.offsetHeight;
+  const newTop = Math.max(80, Math.min(totalH - 80, startTop + (e.clientY - startY)));
+  topPane.style.flex = 'none';
+  topPane.style.height = newTop + 'px';
+  bottomPane.style.flex = '1';
+});
+
+document.addEventListener('mouseup', () => {
+  dragging = false;
+  document.body.style.userSelect = '';
+});
+
+// --- TSV/CSV paste ---
+document.addEventListener('paste', e => {
+  if (e.target.id === 'output') return;
+
+  const text = e.clipboardData.getData('text');
+  if (!text) return;
+
+  const lines = text.trim().split(/\r?\n/).filter(l => l.trim() !== '');
+  if (lines.length === 0) return;
+
+  const isTSV = lines[0].includes('\t');
+  const parseCSV = line => {
+    const result = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { result.push(cur); cur = ''; }
+      else { cur += ch; }
+    }
+    result.push(cur);
+    return result;
+  };
+  saveSnapshot();
+  const parse = line => isTSV ? line.split('\t') : parseCSV(line);
+  const parsed = lines.map(parse);
+  const newCols = Math.max(...parsed.map(r => r.length));
+
+  rows = Math.max(parsed.length - 1, 1);
+  cols = newCols;
+  aligns = Array(cols).fill('left');
+  buildTable();
+
+  const table = document.getElementById('editTable');
+  const hInputs = [...table.querySelectorAll('thead input')];
+  parsed[0].forEach((val, c) => { if (hInputs[c]) hInputs[c].value = val.trim(); });
+
+  const trows = [...table.querySelectorAll('tbody tr')];
+  parsed.slice(1).forEach((row, r) => {
+    row.forEach((val, c) => {
+      const inp = trows[r]?.querySelectorAll('input')[c];
+      if (inp) inp.value = val.trim();
+    });
+  });
+
+  renderMarkdown();
+  if (e.target.classList.contains('cell-input')) e.preventDefault();
+
+  showToast(`📋 ${isTSV ? 'TSV(Excel)' : 'CSV'} 貼り付け完了！ ${parsed.length}行 × ${cols}列`);
+});
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// --- undo/redo ---
+const undoStack = [];
+const redoStack = [];
+const UNDO_LIMIT = 50;
+
+function saveSnapshot() {
+  const { headers, body } = getTableData();
+  undoStack.push({
+    headers: [...headers],
+    body: body.map(r => [...r]),
+    aligns: [...aligns],
+    rows, cols
+  });
+  if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+  redoStack.length = 0; // 新しい操作したらredoは消える
+}
+
+function applySnapshot(snap) {
+  rows = snap.rows;
+  cols = snap.cols;
+  aligns = [...snap.aligns];
+  initAligns(cols);
+
+  const table = document.getElementById('editTable');
+  table.innerHTML = '';
+
+  const thead = table.createTHead();
+  const hrow = thead.insertRow();
+  for (let c = 0; c < cols; c++) {
+    const th = document.createElement('th');
+    const inp = makeInput(true, snap.headers[c] || '');
+    const abtn = document.createElement('button');
+    abtn.className = 'align-btn';
+    abtn.textContent = alignIcon(aligns[c]);
+    abtn.title = 'alignment: ' + aligns[c];
+    abtn.onclick = (e) => { e.stopPropagation(); cycleAlign(c, abtn); };
+    th.appendChild(inp);
+    th.appendChild(abtn);
+    hrow.appendChild(th);
+  }
+  const tbody = table.createTBody();
+  for (let r = 0; r < rows; r++) {
+    const tr = tbody.insertRow();
+    for (let c = 0; c < cols; c++) {
+      const td = document.createElement('td');
+      td.appendChild(makeInput(false, (snap.body[r] || [])[c] || ''));
+      tr.appendChild(td);
+    }
+  }
+  renderMarkdown();
+}
+
+function getCurrentSnapshot() {
+  const { headers, body } = getTableData();
+  return {
+    headers: [...headers],
+    body: body.map(r => [...r]),
+    aligns: [...aligns],
+    rows, cols
+  };
+}
+
+function undo() {
+  if (undoStack.length === 0) { showToast('これ以上戻れないよ～💦'); return; }
+  redoStack.push(getCurrentSnapshot());
+  applySnapshot(undoStack.pop());
+  showToast('↩ undo!');
+}
+
+function redo() {
+  if (redoStack.length === 0) { showToast('これ以上進めないよ～💦'); return; }
+  undoStack.push(getCurrentSnapshot());
+  applySnapshot(redoStack.pop());
+  showToast('↪ redo!');
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+    if (e.shiftKey) { e.preventDefault(); redo(); }
+    else            { e.preventDefault(); undo(); }
+  }
+});
+
+// --- theme ---
+function setTheme(name, btn) {
+  document.documentElement.setAttribute('data-theme', name === 'light' ? '' : name);
+  document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+buildTable();</script>
+</body>
+</html>
