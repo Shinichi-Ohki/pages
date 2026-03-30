@@ -678,6 +678,20 @@
   });
 
   // ── Init ──
+  // URL param: ?t=60 sets timer to 60 seconds
+  const urlT = new URLSearchParams(location.search).get('t');
+  if (urlT) {
+    const sec = Math.max(10, Math.min(600, parseInt(urlT, 10) || 30));
+    totalSeconds = sec;
+    remaining = sec;
+    sliderTime.value = sec;
+    valTime.textContent = fmt(sec);
+    timeDisplay.textContent = fmt(sec);
+    presetRow.querySelectorAll('.preset-btn').forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.sec, 10) === sec);
+    });
+  }
+
   ringProgress.setAttribute('stroke-dasharray', CIRCUMFERENCE);
   updateDisplay();
 })();
