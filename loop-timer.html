@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Loop Timer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Outfit:wght@300;500;700&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --ring-track: #1a1a2e;
+    --ring-active: #00e5a0;
+    --ring-warn: #ff3b5c;
+    --text-primary: #e8e8f0;
+    --text-secondary: #6a6a80;
+    --accent: #00e5a0;
+    --accent-glow: rgba(0, 229, 160, 0.3);
+    --warn-glow: rgba(255, 59, 92, 0.4);
+    --ring-size: min(70vw, 70vh, 400px);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: 'Outfit', sans-serif;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ── Ambient glow ── */
+  .ambient {
+    position: fixed;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.2s ease;
+    z-index: 0;
+  }
+  .ambient.active { opacity: 0.15; background: var(--accent); }
+  .ambient.warn   { opacity: 0.2; background: var(--ring-warn); }
+
+  /* ── Main container ── */
+  .container {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+    padding: 1.5rem;
+    width: 100%;
+    max-width: 500px;
+  }
+
+  /* ── Title ── */
+  .title {
+    font-weight: 300;
+    font-size: 0.85rem;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+
+  /* ── Ring area ── */
+  .ring-wrapper {
+    position: relative;
+    width: var(--ring-size);
+    height: var(--ring-size);
+  }
+
+  .ring-svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+  }
+
+  .ring-track {
+    fill: none;
+    stroke: var(--ring-track);
+    stroke-width: 6;
+  }
+
+  .ring-progress {
+    fill: none;
+    stroke: var(--ring-active);
+    stroke-width: 6;
+    stroke-linecap: round;
+    transition: stroke 0.4s ease;
+    filter: drop-shadow(0 0 8px var(--accent-glow));
+  }
+
+  .ring-progress.warn {
+    stroke: var(--ring-warn);
+    filter: drop-shadow(0 0 12px var(--warn-glow));
+  }
+
+  /* ── Tick marks ── */
+  .ring-ticks { fill: none; stroke: var(--ring-track); stroke-width: 1; }
+
+  /* ── Center display ── */
+  .center-display {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .time-display {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(2.8rem, 10vw, 5rem);
+    line-height: 1;
+    color: var(--text-primary);
+    text-shadow: 0 0 20px var(--accent-glow);
+    transition: text-shadow 0.4s ease, color 0.4s ease;
+  }
+
+  .time-display.warn {
+    color: var(--ring-warn);
+    text-shadow: 0 0 30px var(--warn-glow);
+  }
+
+  .loop-count {
+    font-size: 0.8rem;
+    font-weight: 300;
+    color: var(--text-secondary);
+    letter-spacing: 0.15em;
+  }
+
+  /* ── Controls ── */
+  .controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.2rem;
+    width: 100%;
+  }
+
+  /* ── Start / Stop button ── */
+  .btn-main {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s ease;
+    position: relative;
+  }
+  .btn-main:hover { background: rgba(0, 229, 160, 0.08); }
+  .btn-main:active { transform: scale(0.93); }
+
+  .btn-main .icon-play {
+    width: 0; height: 0;
+    border-style: solid;
+    border-width: 12px 0 12px 22px;
+    border-color: transparent transparent transparent var(--accent);
+    margin-left: 4px;
+  }
+
+  .btn-main .icon-stop {
+    width: 22px; height: 22px;
+    background: var(--ring-warn);
+    border-radius: 3px;
+    display: none;
+  }
+
+  .btn-main.running .icon-play { display: none; }
+  .btn-main.running .icon-stop { display: block; }
+  .btn-main.running { border-color: var(--ring-warn); }
+  .btn-main.running:hover { background: rgba(255, 59, 92, 0.08); }
+
+  /* ── Settings panel ── */
+  .settings {
+    width: 100%;
+    background: var(--surface);
+    border-radius: 16px;
+    padding: 1.2rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+
+  .settings.hidden {
+    opacity: 0.3;
+    pointer-events: none;
+    transform: scale(0.97);
+  }
+
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .setting-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    min-width: 60px;
+  }
+
+  .setting-value {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--accent);
+    min-width: 55px;
+    text-align: right;
+  }
+
+  /* ── Slider ── */
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 4px;
+    background: var(--ring-track);
+    border-radius: 2px;
+    outline: none;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 10px var(--accent-glow);
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 10px var(--accent-glow);
+  }
+
+  /* ── Waveform selector ── */
+  .wave-selector {
+    display: flex;
+    gap: 0.4rem;
+    flex: 1;
+    justify-content: flex-end;
+  }
+
+  .wave-btn {
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--ring-track);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .wave-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0, 229, 160, 0.08);
+  }
+
+  .wave-btn:hover:not(.active) {
+    border-color: var(--text-secondary);
+    color: var(--text-primary);
+  }
+
+  /* ── Preset buttons ── */
+  .preset-row {
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .preset-btn {
+    flex: 1;
+    padding: 0.5rem 0.3rem;
+    border: 1px solid var(--ring-track);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .preset-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0, 229, 160, 0.08);
+  }
+
+  .preset-btn:hover:not(.active) {
+    border-color: var(--text-secondary);
+    color: var(--text-primary);
+  }
+
+  .preset-btn:active {
+    transform: scale(0.95);
+  }
+
+  /* ── Pulse animation for countdown beeps ── */
+  @keyframes pulse-ring {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+  }
+
+  .ring-wrapper.pulse .ring-progress {
+    animation: pulse-ring 0.3s ease;
+  }
+
+  /* ── Wake lock indicator ── */
+  .wake-lock-badge {
+    position: fixed;
+    top: 12px; right: 12px;
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  .wake-lock-badge.on { opacity: 0.6; }
+
+  /* ── Responsive ── */
+  @media (max-height: 700px) {
+    .container { gap: 1rem; }
+    :root { --ring-size: min(55vw, 55vh, 300px); }
+  }
+
+  @media (max-width: 380px) {
+    .settings { padding: 1rem; }
+    .wave-btn { padding: 0.25rem 0.45rem; font-size: 0.65rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ambient" id="ambient"></div>
+
+<div class="container">
+  <div class="title">Loop Timer</div>
+
+  <div class="ring-wrapper" id="ringWrapper">
+    <svg class="ring-svg" viewBox="0 0 200 200" id="ringSvg">
+      <!-- Tick marks -->
+      <g id="ticks"></g>
+      <!-- Track -->
+      <circle class="ring-track" cx="100" cy="100" r="90" />
+      <!-- Progress -->
+      <circle class="ring-progress" id="ringProgress" cx="100" cy="100" r="90"
+        stroke-dasharray="565.49" stroke-dashoffset="0" />
+    </svg>
+
+    <div class="center-display">
+      <div class="time-display" id="timeDisplay">0:30</div>
+      <div class="loop-count" id="loopCount"></div>
+    </div>
+  </div>
+
+  <button class="btn-main" id="btnMain" aria-label="Start / Stop">
+    <div class="icon-play"></div>
+    <div class="icon-stop"></div>
+  </button>
+
+  <div class="settings" id="settings">
+    <div class="preset-row" id="presetRow">
+      <button class="preset-btn active" data-sec="30">0:30</button>
+      <button class="preset-btn" data-sec="60">1:00</button>
+      <button class="preset-btn" data-sec="180">3:00</button>
+      <button class="preset-btn" data-sec="300">5:00</button>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">時間</span>
+      <input type="range" id="sliderTime" min="10" max="600" value="30" step="5">
+      <span class="setting-value" id="valTime">0:30</span>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">音色</span>
+      <div class="wave-selector" id="waveSelector">
+        <button class="wave-btn active" data-wave="sine">Sine</button>
+        <button class="wave-btn" data-wave="square">Square</button>
+        <button class="wave-btn" data-wave="triangle">Triangle</button>
+        <button class="wave-btn" data-wave="sawtooth">Saw</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="wake-lock-badge" id="wakeBadge">☀ Screen On</div>
+
+<script>
+(() => {
+  // ── Elements ──
+  const $ = id => document.getElementById(id);
+  const ringProgress = $('ringProgress');
+  const timeDisplay  = $('timeDisplay');
+  const loopCount    = $('loopCount');
+  const btnMain      = $('btnMain');
+  const settings     = $('settings');
+  const sliderTime   = $('sliderTime');
+  const valTime      = $('valTime');
+  const waveSelector = $('waveSelector');
+  const presetRow    = $('presetRow');
+  const ambient      = $('ambient');
+  const ringWrapper  = $('ringWrapper');
+  const wakeBadge    = $('wakeBadge');
+
+  // ── State ──
+  const CIRCUMFERENCE = 2 * Math.PI * 90; // ~565.49
+  let totalSeconds = 30;
+  let remaining    = totalSeconds;
+  let running      = false;
+  let loops        = 0;
+  let waveType     = 'sine';
+  let intervalId   = null;
+  let lastTickAt   = 0;
+  let audioCtx     = null;
+  let wakeLock     = null;
+
+  // ── Tick marks (60 marks around circle) ──
+  (() => {
+    const g = $('ticks');
+    for (let i = 0; i < 60; i++) {
+      const angle = (i / 60) * 360;
+      const rad = (angle - 90) * Math.PI / 180;
+      const isMajor = i % 5 === 0;
+      const r1 = isMajor ? 82 : 84;
+      const r2 = 87;
+      const x1 = 100 + r1 * Math.cos(rad);
+      const y1 = 100 + r1 * Math.sin(rad);
+      const x2 = 100 + r2 * Math.cos(rad);
+      const y2 = 100 + r2 * Math.sin(rad);
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', x1);
+      line.setAttribute('y1', y1);
+      line.setAttribute('x2', x2);
+      line.setAttribute('y2', y2);
+      line.setAttribute('stroke', isMajor ? '#2a2a40' : '#1a1a2e');
+      line.setAttribute('stroke-width', isMajor ? 1.5 : 0.8);
+      g.appendChild(line);
+    }
+  })();
+
+  // ── Helpers ──
+  function fmt(sec) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  function updateRing(sec) {
+    // Show progress within the current 60-second segment
+    const inMinute = sec % 60;
+    const fraction = inMinute / 60;
+    const offset = CIRCUMFERENCE * fraction;
+    ringProgress.setAttribute('stroke-dashoffset', offset);
+  }
+
+  function updateDisplay() {
+    timeDisplay.textContent = fmt(remaining);
+    updateRing(remaining);
+
+    const isWarn = remaining <= 10 && remaining > 0;
+    ringProgress.classList.toggle('warn', isWarn);
+    timeDisplay.classList.toggle('warn', isWarn);
+    ambient.classList.toggle('active', running && !isWarn);
+    ambient.classList.toggle('warn', running && isWarn);
+
+    if (loops > 0) {
+      loopCount.textContent = `Loop ${loops}`;
+    }
+  }
+
+  // ── Audio ──
+  function ensureAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function beep(freq, duration, vol = 0.3) {
+    ensureAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = waveType;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  }
+
+  function playTick() {
+    beep(880, 0.08, 0.25);
+  }
+
+  function playComplete() {
+    // Two-tone chime
+    beep(660, 0.15, 0.4);
+    setTimeout(() => beep(880, 0.25, 0.4), 150);
+    setTimeout(() => beep(1100, 0.35, 0.35), 350);
+  }
+
+  // ── Wake Lock ──
+  async function requestWakeLock() {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeBadge.classList.add('on');
+        wakeLock.addEventListener('release', () => {
+          wakeBadge.classList.remove('on');
+        });
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  async function releaseWakeLock() {
+    if (wakeLock) {
+      await wakeLock.release().catch(() => {});
+      wakeLock = null;
+    }
+    wakeBadge.classList.remove('on');
+  }
+
+  // Re-acquire wake lock on visibility change
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && running) {
+      requestWakeLock();
+    }
+  });
+
+  // ── Timer logic ──
+  function tick() {
+    const now = performance.now();
+    // Guard against double-ticks
+    if (now - lastTickAt < 800) return;
+    lastTickAt = now;
+
+    remaining--;
+
+    if (remaining <= 10 && remaining > 0) {
+      playTick();
+      // Visual pulse
+      ringWrapper.classList.remove('pulse');
+      void ringWrapper.offsetWidth; // reflow
+      ringWrapper.classList.add('pulse');
+    }
+
+    if (remaining <= 0) {
+      playComplete();
+      loops++;
+      remaining = totalSeconds;
+    }
+
+    updateDisplay();
+  }
+
+  function start() {
+    ensureAudio();
+    running = true;
+    remaining = totalSeconds;
+    loops = 0;
+    lastTickAt = 0;
+    btnMain.classList.add('running');
+    settings.classList.add('hidden');
+    ambient.classList.add('active');
+    updateDisplay();
+    requestWakeLock();
+
+    // Use setInterval with 1s; also use a worker fallback for background tabs
+    intervalId = setInterval(tick, 1000);
+  }
+
+  function stop() {
+    running = false;
+    clearInterval(intervalId);
+    intervalId = null;
+    btnMain.classList.remove('running');
+    settings.classList.remove('hidden');
+    ambient.classList.remove('active');
+    ambient.classList.remove('warn');
+    ringProgress.classList.remove('warn');
+    timeDisplay.classList.remove('warn');
+    remaining = totalSeconds;
+    loops = 0;
+    loopCount.textContent = '';
+    updateDisplay();
+    releaseWakeLock();
+  }
+
+  // ── Event handlers ──
+  btnMain.addEventListener('click', () => {
+    if (running) stop(); else start();
+  });
+
+  sliderTime.addEventListener('input', () => {
+    totalSeconds = parseInt(sliderTime.value, 10);
+    remaining = totalSeconds;
+    valTime.textContent = fmt(totalSeconds);
+    timeDisplay.textContent = fmt(totalSeconds);
+    updateRing(remaining);
+    // Sync preset highlight
+    presetRow.querySelectorAll('.preset-btn').forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.sec, 10) === totalSeconds);
+    });
+  });
+
+  presetRow.addEventListener('click', (e) => {
+    const btn = e.target.closest('.preset-btn');
+    if (!btn) return;
+    presetRow.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    totalSeconds = parseInt(btn.dataset.sec, 10);
+    remaining = totalSeconds;
+    sliderTime.value = totalSeconds;
+    valTime.textContent = fmt(totalSeconds);
+    updateDisplay();
+  });
+
+  waveSelector.addEventListener('click', (e) => {
+    const btn = e.target.closest('.wave-btn');
+    if (!btn) return;
+    waveSelector.querySelectorAll('.wave-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    waveType = btn.dataset.wave;
+    ensureAudio();
+    beep(660, 0.12, 0.2);
+  });
+
+  // ── Background timer resilience ──
+  // When tab goes background, setInterval may throttle.
+  // Use visibilitychange to correct drift.
+  let lastVisibleTime = Date.now();
+  let remainingAtHide = 0;
+
+  document.addEventListener('visibilitychange', () => {
+    if (!running) return;
+    if (document.visibilityState === 'hidden') {
+      lastVisibleTime = Date.now();
+      remainingAtHide = remaining;
+    } else {
+      // Correct for elapsed time while hidden
+      const elapsed = Math.round((Date.now() - lastVisibleTime) / 1000);
+      if (elapsed > 1) {
+        let adjusted = remainingAtHide - elapsed;
+        // Handle loops that happened while hidden
+        while (adjusted <= 0) {
+          loops++;
+          adjusted += totalSeconds;
+        }
+        remaining = adjusted;
+        updateDisplay();
+      }
+    }
+  });
+
+  // ── Init ──
+  // URL param: ?t=60 sets timer to 60 seconds
+  const urlT = new URLSearchParams(location.search).get('t');
+  if (urlT) {
+    const sec = Math.max(10, Math.min(600, parseInt(urlT, 10) || 30));
+    totalSeconds = sec;
+    remaining = sec;
+    sliderTime.value = sec;
+    valTime.textContent = fmt(sec);
+    timeDisplay.textContent = fmt(sec);
+    presetRow.querySelectorAll('.preset-btn').forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.sec, 10) === sec);
+    });
+  }
+
+  ringProgress.setAttribute('stroke-dasharray', CIRCUMFERENCE);
+  updateDisplay();
+})();
+</script>
+</body>
+</html>
