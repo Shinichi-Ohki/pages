@@ -359,6 +359,34 @@
                                 <line x1="220" y1="110" x2="220" y2="145" stroke="black" strokeWidth="0.8"/>
                                 <text x="185" y="140" textAnchor="middle" fontFamily="Arial" fontSize="12">D</text>
                             </svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 500" fontFamily="sans-serif" fontSize="20">
+                                <defs>
+                                    <marker id="arr5" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                                        <polygon points="0 0, 8 3, 0 6"/>
+                                    </marker>
+                                    <marker id="arr5-r" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto-start-reverse">
+                                        <polygon points="0 0, 8 3, 0 6"/>
+                                    </marker>
+                                </defs>
+                                <circle cx="280" cy="240" r="200" fill="none" stroke="black" strokeWidth="2"/>
+                                <circle cx="280" cy="240" r="130" fill="none" stroke="black" strokeWidth="2"/>
+                                <circle cx="280" cy="240" r="165" fill="none" stroke="black" strokeWidth="1.5" strokeDasharray="6,4"/>
+                                <circle cx="280" cy="240" r="4"/>
+                                <text x="258" y="268">O</text>
+                                <circle cx="445" cy="240" r="4"/>
+                                <text x="451" y="233">D</text>
+                                <line x1="80" y1="240" x2="150" y2="240" stroke="black" strokeWidth="1.5" markerStart="url(#arr5-r)" markerEnd="url(#arr5)"/>
+                                <text x="120" y="233">C</text>
+                                <line x1="280" y1="240" x2="445" y2="240" stroke="black" strokeWidth="1.5" markerStart="url(#arr5-r)" markerEnd="url(#arr5)"/>
+                                <line x1="80"  y1="240" x2="80"  y2="22"  stroke="black" strokeWidth="1.5" strokeDasharray="6,4"/>
+                                <line x1="480" y1="240" x2="480" y2="22"  stroke="black" strokeWidth="1.5" strokeDasharray="6,4"/>
+                                <line x1="80"  y1="32"  x2="480" y2="32"  stroke="black" strokeWidth="1.5" markerStart="url(#arr5-r)" markerEnd="url(#arr5)"/>
+                                <text x="280" y="20" textAnchor="middle">A</text>
+                                <line x1="150" y1="240" x2="150" y2="465" stroke="black" strokeWidth="1.5" strokeDasharray="6,4"/>
+                                <line x1="410" y1="240" x2="410" y2="465" stroke="black" strokeWidth="1.5" strokeDasharray="6,4"/>
+                                <line x1="150" y1="455" x2="410" y2="455" stroke="black" strokeWidth="1.5" markerStart="url(#arr5-r)" markerEnd="url(#arr5)"/>
+                                <text x="280" y="480" textAnchor="middle">B</text>
+                            </svg>
                             <div className="svg-caption">
                                 AとBからCとDを計算します<br/>
                                 C = (A-B)/2<br/>
