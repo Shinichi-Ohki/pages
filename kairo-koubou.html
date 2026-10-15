@@ -1,0 +1,1183 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>回路工房</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b110d; --panel:#101a14; --panel2:#14221a; --border:#22382b;
+  --text:#d9e7dd; --muted:#8fa999; --dim:#5c7365;
+  --pcb:#0f4d30; --gold:#d8b04a; --copper:#c47a3a; --silk:#eef3ee;
+  --led:#ff3b30; --ok:#4ade80; --warn:#facc15; --bad:#ff5a4e; --cyan:#5ee7ff;
+  --mono:'Share Tech Mono',ui-monospace,Menlo,monospace;
+  --pix:'DotGothic16','Hiragino Sans',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font-family:'Hiragino Sans','Noto Sans JP',system-ui,sans-serif;font-size:21px;line-height:1.45;
+  background-image:radial-gradient(circle at 20% 0%,#16271d 0,transparent 60%);overflow:hidden;display:flex;flex-direction:column;height:100vh}
+button{font:inherit;color:inherit}
+
+/* ---------- header ---------- */
+header{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:20px;padding:10px 18px;border-bottom:1px solid var(--border);background:#0d1611}
+.logo{font-family:var(--pix);font-size:33px;letter-spacing:.06em;line-height:1.1}
+.logo small{display:block;font-size:15px;color:var(--muted);letter-spacing:.08em;margin-top:2px}
+.logo b{color:var(--gold);font-weight:normal}
+.counter{text-align:center}
+.counter .big{font-family:var(--mono);font-size:52px;color:#ff6b5e;text-shadow:0 0 8px rgba(255,59,48,.7),0 0 20px rgba(255,59,48,.35);line-height:1;letter-spacing:.04em}
+.counter .big .u{font-size:27px;opacity:.8;margin-left:8px}
+.counter .rate{font-family:var(--mono);color:var(--muted);margin-top:4px;font-size:22px}
+.power{min-width:320px}
+.power .lbl{display:flex;justify-content:space-between;gap:12px;font-size:18px;color:var(--muted);font-family:var(--mono)}
+.power .bar{height:14px;border:1px solid var(--border);border-radius:7px;background:#0a120d;overflow:hidden;margin-top:4px}
+.power .fill{height:100%;width:0;background:var(--ok);transition:width .2s,background .2s}
+.power .st{font-size:18px;margin-top:3px;font-family:var(--mono);color:var(--ok)}
+.power.brown .st{color:var(--bad);animation:blink .6s steps(2) infinite}
+@keyframes blink{50%{opacity:.35}}
+
+.ticker{min-height:38px;overflow:hidden;border-bottom:1px solid var(--border);background:#0a100c;color:var(--muted);font-size:18px;display:flex;align-items:center;padding:0 18px;gap:12px}
+.ticker .tag{font-family:var(--mono);color:var(--gold);flex:none}
+.ticker .msg{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .4s}
+.buffs{display:flex;gap:6px;margin-left:auto;flex:none}
+.buff{font-family:var(--mono);font-size:16px;padding:1px 10px;border-radius:12px;background:#3a2b07;color:var(--warn);border:1px solid #6b5212}
+
+/* ---------- layout ---------- */
+main{display:grid;grid-template-columns:minmax(380px,1.05fr) minmax(400px,1fr) minmax(400px,1fr);gap:12px;padding:12px;flex:1;min-height:0}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.ph{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--border);font-family:var(--pix);font-size:23px;gap:8px}
+.ph .hint{font-family:inherit;font-size:17px;color:var(--muted)}
+.pb{overflow-y:auto;padding:12px;flex:1;min-height:0}
+.pb::-webkit-scrollbar{width:10px}.pb::-webkit-scrollbar-thumb{background:#24392c;border-radius:5px}
+
+/* board */
+#boardWrap{position:relative;border-radius:8px;overflow:hidden;box-shadow:inset 0 0 0 1px #1d5a3a, 0 6px 24px rgba(0,0,0,.45);transition:box-shadow .3s;max-width:680px;margin:0 auto}
+#boardWrap.oc{box-shadow:inset 0 0 0 2px var(--warn),0 0 24px rgba(250,204,21,.35)}
+#board{display:block;width:100%;cursor:crosshair;touch-action:manipulation;outline:none}
+.float{position:absolute;pointer-events:none;font-family:var(--mono);font-size:26px;color:#fff6c2;text-shadow:0 0 6px #ffb300;animation:up .9s ease-out forwards;white-space:nowrap;transform:translate(-50%,-50%)}
+@keyframes up{to{transform:translate(-50%,-260%);opacity:0}}
+.clickhint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;font-family:var(--pix);background:rgba(0,0,0,.6);padding:10px 18px;border-radius:8px;border:1px dashed var(--silk);color:var(--silk);text-align:center;animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.55}}
+.junk{position:absolute;width:88px;height:64px;border:none;cursor:pointer;background:linear-gradient(#c79a5b,#a87a3e);border-radius:5px;box-shadow:0 0 0 2px #6b4a1f,0 0 22px 6px rgba(255,214,90,.75);animation:bob 1.1s ease-in-out infinite;padding:0}
+.junk::before{content:"";position:absolute;left:0;right:0;top:16px;height:3px;background:#6b4a1f}
+.junk span{font-family:var(--pix);font-size:18px;color:#3b2408;position:relative;top:8px}
+@keyframes bob{50%{transform:translateY(-6px) rotate(-4deg)}}
+.clickinfo{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;font-family:var(--mono);color:var(--muted);font-size:18px;margin:10px auto 0;max-width:680px}
+.statgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px auto 0;max-width:680px}
+.stat{background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:8px 10px}
+.stat .k{font-size:16px;color:var(--muted)}
+.stat .v{font-family:var(--mono);font-size:23px}
+
+/* shop */
+.amt{display:flex;gap:3px}
+.amt button{background:#0b130e;border:1px solid var(--border);padding:3px 10px;font-family:var(--mono);font-size:18px;cursor:pointer;border-radius:5px}
+.amt button.on{background:var(--gold);color:#1a1405;border-color:var(--gold)}
+.card{display:grid;grid-template-columns:64px 1fr auto;gap:12px;align-items:center;width:100%;text-align:left;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:border-color .15s,background .15s,opacity .15s}
+.card:hover{border-color:#3d6a4f}
+.card.can{border-color:#3b6b4c;background:#16281d}
+.card.can .cost{color:var(--ok)}
+.card.cant{opacity:.62}
+.card.locked{opacity:.4;cursor:default}
+.card .ico{width:64px;height:64px;border-radius:6px;background:var(--pcb);display:block}
+.card .nm{font-weight:600}
+.card .sub{font-family:var(--mono);font-size:16px;color:var(--muted);margin-left:8px}
+.card .cd{font-size:16px;color:var(--muted);margin-top:2px;line-height:1.45}
+.card .cf{display:flex;gap:4px 14px;flex-wrap:wrap;margin-top:4px;font-family:var(--mono);font-size:18px}
+.card .cost{color:var(--bad)}
+.card .rate{color:var(--muted)}
+.card .count{font-family:var(--mono);font-size:38px;color:var(--gold);min-width:44px;text-align:right}
+.badge{width:64px;height:64px;border-radius:6px;display:grid;place-items:center;font-family:var(--mono);font-size:15px;letter-spacing:.02em;border:1px solid}
+.b-click{background:#2a1a0c;color:#ffb46b;border-color:#6b3f17}
+.b-global{background:#0c1f2a;color:var(--cyan);border-color:#17526b}
+.b-psu{background:#2a0c0c;color:#ff8a80;border-color:#6b1717}
+.b-watt{background:#1f2a0c;color:#c7f36b;border-color:#4d6b17}
+
+/* tabs */
+.tabs{display:flex;border-bottom:1px solid var(--border);overflow-x:auto}
+.tabs button{flex:1;background:none;border:none;border-bottom:3px solid transparent;padding:10px 8px;cursor:pointer;color:var(--muted);font-family:var(--pix);font-size:21px;white-space:nowrap;position:relative}
+.tabs button.on{color:var(--text);border-bottom-color:var(--gold)}
+.tabs .dot{display:inline-block;min-width:22px;padding:0 6px;border-radius:11px;background:var(--ok);color:#06200f;font-family:var(--mono);font-size:16px;margin-left:4px}
+.tab{display:none}.tab.on{display:block}
+.sec{font-family:var(--pix);color:var(--muted);font-size:19px;margin:12px 2px 8px}
+.empty{color:var(--dim);font-size:18px;padding:16px;text-align:center}
+
+.ach{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+.ac{border:1px solid var(--border);border-radius:6px;padding:8px 10px;background:#0c140f;font-size:16px;color:var(--dim)}
+.ac b{display:block;font-size:18px;font-weight:600}
+.ac.got{border-color:#6b5a1f;background:#1e1a0b;color:#cdbb85}
+.ac.got b{color:var(--gold)}
+
+.pp{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:14px;line-height:1.7}
+.pp .n{font-family:var(--mono);font-size:33px;color:var(--gold)}
+.btn{background:var(--gold);color:#1a1405;border:none;border-radius:6px;padding:10px 18px;font-family:var(--pix);cursor:pointer;font-size:20px}
+.btn:disabled{background:#2a3a30;color:var(--dim);cursor:not-allowed}
+.btn.ghost{background:none;border:1px solid var(--border);color:var(--text)}
+.btn.danger{background:#5a1612;color:#ffd6d2}
+textarea{width:100%;height:120px;background:#0a110c;color:var(--text);border:1px solid var(--border);border-radius:6px;font-family:var(--mono);font-size:16px;padding:8px}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0;align-items:center}
+.kv{display:grid;grid-template-columns:1fr auto;gap:6px 14px;font-size:19px}
+.kv span:nth-child(even){font-family:var(--mono);color:var(--gold);text-align:right}
+.note{font-size:18px}
+.note-s{font-size:16px;color:var(--muted)}
+
+#toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:50;pointer-events:none;max-width:min(480px,calc(100vw - 36px))}
+.toast{background:#13241a;border:1px solid #2f5a41;border-left:5px solid var(--ok);padding:10px 14px;border-radius:6px;font-size:19px;box-shadow:0 6px 20px rgba(0,0,0,.5);animation:tin .25s ease-out}
+.toast.gold{border-left-color:var(--gold)}
+.toast.ach{border-left-color:var(--cyan)}
+.toast small{display:block;color:var(--muted);font-size:16px}
+@keyframes tin{from{transform:translateX(30px);opacity:0}}
+
+/* 幅が足りないときは2列 → 1列。ページ全体をスクロール */
+@media (max-width:1320px){
+  body{overflow:auto;height:auto;display:block}
+  main{grid-template-columns:1fr 1fr}
+  main > .panel:first-child{grid-column:1 / -1}
+  .pb{overflow:visible}
+  header{grid-template-columns:1fr auto;}
+  .counter{grid-column:1 / -1;grid-row:2}
+}
+@media (max-width:860px){
+  main{grid-template-columns:1fr;padding:8px;gap:8px}
+  header{grid-template-columns:1fr;text-align:center;padding:10px}
+  .counter{grid-row:auto}
+  .power{min-width:0}
+  .counter .big{font-size:42px}
+  .ticker{padding:0 10px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">回路<b>工房</b><small>CIRCUIT WORKSHOP · 電子工作インクリメンタル</small></div>
+  <div class="counter">
+    <div class="big"><span id="eNum">0</span><span class="u">e⁻</span></div>
+    <div class="rate"><span id="eRate">0</span> e⁻/s</div>
+  </div>
+  <div class="power" id="power">
+    <div class="lbl"><span>⚡ 消費電力</span><span id="pTxt">0 W / 2.5 W</span></div>
+    <div class="bar"><div class="fill" id="pFill"></div></div>
+    <div class="st" id="pSt">電源OK</div>
+  </div>
+</header>
+<div class="ticker"><span class="tag">[NEWS]</span><span class="msg" id="news"></span><span class="buffs" id="buffs"></span></div>
+
+<main>
+  <section class="panel">
+    <div class="ph">作業基板 <span class="hint">クリックではんだ付け → 電子を獲得</span></div>
+    <div class="pb">
+      <div id="boardWrap">
+        <canvas id="board" tabindex="0" aria-label="基板。クリックで電子を獲得"></canvas>
+        <div class="clickhint" id="clickHint">基板をクリックして<br>はんだ付けしよう</div>
+      </div>
+      <div class="clickinfo"><span>1クリック = <span id="cVal">1</span> e⁻</span><span>Space キーでもはんだ付け</span></div>
+      <div class="statgrid">
+        <div class="stat"><div class="k">今回の累計</div><div class="v" id="sRun">0</div></div>
+        <div class="stat"><div class="k">生産倍率</div><div class="v" id="sMul">×1.00</div></div>
+        <div class="stat"><div class="k">特許</div><div class="v" id="sPat">0</div></div>
+        <div class="stat"><div class="k">実績</div><div class="v" id="sAch">0</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="ph">部品棚 <div class="amt" id="amt"><button data-a="1">×1</button><button data-a="10">×10</button><button data-a="100">×100</button><button data-a="max">MAX</button></div></div>
+    <div class="pb" id="shop"></div>
+  </section>
+
+  <section class="panel">
+    <div class="tabs" id="tabs">
+      <button data-t="up" class="on">強化<span class="dot" id="upDot" hidden></span></button>
+      <button data-t="psu">電源<span class="dot" id="psuDot" hidden></span></button>
+      <button data-t="ach">実績</button>
+      <button data-t="pre">量産化</button>
+      <button data-t="set">設定</button>
+    </div>
+    <div class="pb">
+      <div class="tab on" id="t-up"><div id="upList"></div><div class="sec" id="upOwnedH"></div></div>
+      <div class="tab" id="t-psu">
+        <div class="pp note" style="margin-bottom:10px">部品は電力を消費します。容量を超えると<b style="color:var(--bad)">電圧降下</b>で生産効率が落ちます（効率 = (容量/消費)²）。基本容量は USBバスパワー 5V/500mA = 2.5 W。</div>
+        <div id="psuList"></div>
+      </div>
+      <div class="tab" id="t-ach"><div class="sec" id="achH"></div><div class="ach" id="achList"></div></div>
+      <div class="tab" id="t-pre"><div id="preBox"></div></div>
+      <div class="tab" id="t-set"><div id="setBox"></div></div>
+    </div>
+  </section>
+</main>
+<div id="toasts"></div>
+
+<script>
+'use strict';
+/* =========================================================
+   データ定義
+   ========================================================= */
+const SAVE_KEY = 'kairo-koubou-save-v1';
+const R_GEN = 1.15, R_PSU = 1.18, BASE_WATT = 2.5;
+const SI = ['','k','M','G','T','P','E','Z','Y','R','Q'];
+
+const GENS = [
+  {id:'res',   ref:'R',  name:'炭素皮膜抵抗',   sub:'1/4W 10kΩ',       cost:15,    prod:0.1,   watt:0.05,  desc:'すべての回路はここから始まる。カラーコードは茶黒橙金。'},
+  {id:'led',   ref:'D',  name:'赤色LED',        sub:'φ5mm 20mA',       cost:100,   prod:1,     watt:0.04,  desc:'光ると嬉しい。電流制限抵抗を忘れずに。'},
+  {id:'cap',   ref:'C',  name:'電解コンデンサ', sub:'47µF 25V',        cost:1100,  prod:8,     watt:0.15,  desc:'極性に注意。逆に挿すとポンッ。'},
+  {id:'tr',    ref:'Q',  name:'トランジスタ',   sub:'2SC1815',         cost:12000, prod:47,    watt:0.4,   desc:'増幅もスイッチもこなす万能選手。'},
+  {id:'ic555', ref:'U1', name:'555タイマーIC',  sub:'NE555 DIP-8',     cost:1.3e5, prod:260,   watt:1.2,   desc:'半世紀現役のロングセラー。とりあえず発振。'},
+  {id:'opamp', ref:'U2', name:'オペアンプ',     sub:'LM358 DIP-8',     cost:1.4e6, prod:1400,  watt:4,     desc:'理想は仮想短絡。現実はだいたい発振。'},
+  {id:'mcu',   ref:'U3', name:'マイコン',       sub:'ATmega328P',      cost:2e7,   prod:7800,  watt:12,    desc:'ブートローダを焼いたら、もう何でも作れる。'},
+  {id:'fpga',  ref:'U4', name:'FPGA',           sub:'50k LUT',         cost:3.3e8, prod:44000, watt:45,    desc:'ハードウェアをソフトのように書き換える。'},
+  {id:'soc',   ref:'U5', name:'SoC',            sub:'64bit 8コア',     cost:5.1e9, prod:2.6e5, watt:160,   desc:'CPUもGPUもNPUも一枚のダイに。'},
+  {id:'asic',  ref:'U6', name:'カスタムASIC',   sub:'3nm プロセス',    cost:7.5e10,prod:1.6e6, watt:600,   desc:'テープアウト一発勝負。マスク代は見ないこと。'},
+  {id:'qpu',   ref:'QP', name:'量子チップ',     sub:'超伝導 1024qubit',cost:1e12,  prod:1e7,   watt:2500,  desc:'観測するまで、電子は増えているし増えていない。'},
+  {id:'dyson', ref:'Σ',  name:'ダイソン球基板', sub:'恒星直結',        cost:1.4e13,prod:6.5e7, watt:12000, desc:'太陽をまるごと電源に。はんだ付けは宇宙服で。'},
+];
+
+const PSUS = [
+  {name:'単3乾電池',       sub:'1.5V アルカリ',   cost:50,    watt:1,     abbr:'AA'},
+  {name:'9V電池',          sub:'006P',            cost:800,   watt:6,     abbr:'9V'},
+  {name:'ACアダプタ',      sub:'12V 2A',          cost:1.5e4, watt:24,    abbr:'AC'},
+  {name:'安定化電源',      sub:'30V 5A ラボ用',   cost:2.5e5, watt:150,   abbr:'LAB'},
+  {name:'ATX電源',         sub:'850W 80PLUS Gold',cost:6e6,   watt:850,   abbr:'ATX'},
+  {name:'産業用電源ラック',sub:'三相200V',        cost:2e8,   watt:8000,  abbr:'3φ'},
+  {name:'メガソーラー',    sub:'1 MW',            cost:1e10,  watt:1e6,   abbr:'PV'},
+  {name:'核融合炉',        sub:'トカマク型',      cost:5e12,  watt:1e9,   abbr:'FUS'},
+];
+
+const TIER_TH = [10, 25, 50, 100, 200];
+const TIER_CM = [10, 50, 500, 5e4, 5e6];
+const TIER_NAMES = {
+  res:  ['金属皮膜抵抗','精密1%品','チップ抵抗 0603','薄膜抵抗アレイ','超精密0.01%品'],
+  led:  ['高輝度LED','フルカラーLED','シリアルLED','LEDマトリクス','マイクロLED'],
+  cap:  ['積層セラミック','タンタルコンデンサ','低ESR品','電気二重層キャパシタ','固体ポリマー'],
+  tr:   ['MOSFET','ダーリントン接続','GaNパワー素子','SiC MOSFET','ナノシートFET'],
+  ic555:['CMOS版 7555','デュアル版 556','非安定マルチバイブレータ','PWM調光回路','伝説のLチカ'],
+  opamp:['レールtoレール','低ノイズ品','計装アンプ','チョッパ安定型','理想オペアンプ'],
+  mcu:  ['Wi-Fi付きマイコン','デュアルコア化','RTOS導入','OTAアップデート','ベアメタル極め'],
+  fpga: ['高位合成','パイプライン化','タイミング収束','部分再構成','HBM直結'],
+  soc:  ['big.LITTLE','NPU内蔵','チップレット','3D積層','裏面電源供給'],
+  asic: ['EUV露光','GAA構造','歩留まり改善','マルチダイ','オングストローム世代'],
+  qpu:  ['量子エラー訂正','希釈冷凍機','論理量子ビット','量子超越','量子インターネット'],
+  dyson:['恒星風シールド','ダイソンスウォーム','銀河規模配線','ワームホール配線','熱的死対策'],
+};
+
+const UPS = [];
+GENS.forEach((g, i) => {
+  TIER_NAMES[g.id].forEach((nm, k) => UPS.push({
+    id:`g${i}_${k}`, name:nm, cost:g.cost*TIER_CM[k], type:'gen', gen:i, mult:2,
+    desc:`${g.name}の生産量 ×2（${TIER_TH[k]}個で解禁）`, unlock:() => cnt(i) >= TIER_TH[k]}));
+  UPS.push({id:`w${i}`, name:`${g.name} 省電力版`, cost:g.cost*200, type:'watt', gen:i, mult:0.5,
+    desc:`${g.name}の消費電力 ×0.5（30個で解禁）`, unlock:() => cnt(i) >= 30});
+});
+[['温調はんだごて',100,'click'],['フラックス',800,'click'],['こて先 C型',8000,'click'],
+ ['はんだ吸取線',1e5,'pct'],['ホットエアリワーク',1e7,'pct'],['リフロー炉',1e9,'pct'],
+ ['チップマウンタ',1e11,'pct'],['全自動実装ライン',1e13,'pct'],['ナノロボット実装',1e15,'pct']
+].forEach(([nm,c,t],k) => UPS.push({id:`c${k}`, name:nm, cost:c, type:t, mult:2, pct:0.01,
+  desc: t==='click' ? 'クリックの基本値 ×2' : 'クリック時、毎秒生産量の1%を追加獲得',
+  unlock:() => S.earnedRun >= c*0.3}));
+[['デジタルテスター',5e3],['オシロスコープ',5e5],['ロジックアナライザ',5e7],['スペクトラムアナライザ',5e9],
+ ['ネットワークアナライザ',5e11],['クリーンルーム',5e13],['半導体パラメータアナライザ',5e15],['電子顕微鏡',5e17]
+].forEach(([nm,c],k) => UPS.push({id:`a${k}`, name:nm, cost:c, type:'global', mult:1.5,
+  desc:'全部品の生産量 ×1.5', unlock:() => S.earnedRun >= c*0.3}));
+[['デカップリングコンデンサ',1500,1.5],['スイッチング電源化',2e4,2],['同期整流',2e7,2],['GaNパワー段',2e10,2],['超伝導送電線',2e13,2]
+].forEach(([nm,c,m],k) => UPS.push({id:`p${k}`, name:nm, cost:c, type:'psu', mult:m,
+  desc:`電源容量 ×${m}`, unlock:() => S.earnedRun >= c*0.3}));
+
+const ACH = [];
+[[1,'はじめての電子'],[1e3,'Lチカ成功'],[1e6,'ブレッドボード卒業'],[1e9,'基板発注デビュー'],[1e12,'秋葉原の常連'],
+ [1e15,'電子部品商社'],[1e18,'半導体ファウンドリ'],[1e21,'惑星規模の回路'],[1e24,'電子の海'],[1e27,'宇宙の配線係']
+].forEach(([v,n],k) => ACH.push({id:`e${k}`, name:n, desc:`累計 ${fmtRaw(v)} e⁻ を獲得`, test:() => S.earnedAll >= v}));
+[[10,'微弱電流'],[1e3,'安定動作'],[1e6,'大電流'],[1e9,'ギガ電子'],[1e12,'テラ電子'],[1e15,'ペタ電子']
+].forEach(([v,n],k) => ACH.push({id:`r${k}`, name:n, desc:`毎秒 ${fmtRaw(v)} e⁻ に到達`, test:() => D.eps >= v}));
+GENS.forEach((g,i) => {
+  ACH.push({id:`o${i}_1`,   name:`はじめての${g.name}`, desc:`${g.name}を1個実装`,   test:() => cnt(i) >= 1});
+  ACH.push({id:`o${i}_50`,  name:`${g.name}マニア`,     desc:`${g.name}を50個実装`,  test:() => cnt(i) >= 50});
+  ACH.push({id:`o${i}_100`, name:`${g.name}の山`,       desc:`${g.name}を100個実装`, test:() => cnt(i) >= 100});
+});
+[[10,'はんだ付け入門'],[500,'はんだ付け職人'],[5000,'はんだごて仙人'],[20000,'腱鞘炎注意']
+].forEach(([v,n],k) => ACH.push({id:`k${k}`, name:n, desc:`${v}回はんだ付け`, test:() => S.clicksAll >= v}));
+[[1,'ジャンク漁り'],[10,'ジャンク屋の常連'],[50,'ジャンクの目利き']
+].forEach(([v,n],k) => ACH.push({id:`j${k}`, name:n, desc:`ジャンク箱を${v}個開ける`, test:() => S.junk >= v}));
+[[10,'電源強化'],[50,'電力会社']].forEach(([v,n],k) => ACH.push({id:`s${k}`, name:n, desc:`電源を合計${v}台設置`, test:() => S.psus.reduce((a,b)=>a+b,0) >= v}));
+[[10,'改造好き'],[50,'アップグレード沼'],[100,'魔改造']].forEach(([v,n],k) => ACH.push({id:`u${k}`, name:n, desc:`強化を${v}個購入`, test:() => Object.keys(S.ups).length >= v}));
+[[1,'量産化'],[5,'量産ライン'],[25,'世界の工場']].forEach(([v,n],k) => ACH.push({id:`x${k}`, name:n, desc:`量産化を${v}回実行`, test:() => S.prestiges >= v}));
+ACH.push({id:'smoke', name:'マジックスモーク', desc:'電圧降下で効率50%未満に', test:() => S.smoked});
+
+const NEWS = [
+  '「抵抗は無駄ではない」— 抵抗器業界団体',
+  '秋葉原のパーツ屋で「あと1個足りない」現象を観測',
+  '「とりあえずパスコン 0.1µF」— 先人の知恵',
+  'データシートは最後のページまで読め。注意書きはだいたい最後にある',
+  'LEDの足、長い方がアノード。切った後では手遅れ',
+  '部品は多めに買え。必ず1個は壊す',
+  '電解コンデンサが膨らんでいる。見なかったことにした',
+  '「動いた！」「なぜ動いた？」',
+  'オシロのプローブのGNDクリップ、今日も行方不明',
+  'I²Cのプルアップ抵抗を忘れる事案、本日3回目',
+  '回路図にない配線が見つかる。通称「空中配線」',
+  '1/4W抵抗に1W流した結果、香ばしい匂いが漂う',
+  '電源の+と−を逆に…（以下略）',
+  '静電気防止リストバンド、机の上で静かに待機中',
+  'Lチカ、本日100回目の成功',
+  '基板発注、送料の方が部品代より高い',
+  'はんだごてのこて台、なぜか左手側にある',
+  'ブレッドボードの接触不良、3時間後に判明',
+  'ジャンパ線の色を揃える派と揃えない派、和解ならず',
+  '「この部品、ディスコンです」',
+  'チップ部品0402、くしゃみで消失',
+  '量子チップの希釈冷凍機、冷蔵庫と間違えて開けられる',
+  'FPGAの合成、終わる前にお昼ごはんが終わる',
+  '恒星を電源にした結果、電気代の請求先が不明に',
+  '3端子レギュレータを触ったら熱かった。そりゃそうだ',
+  '「GNDは共通にしましたか？」— 全トラブルの半分を解決する質問',
+  'ユニバーサル基板の配線、裏から見ると芸術作品',
+  '抵抗のカラーコード「黒茶赤橙黄緑青紫灰白」、語呂合わせで覚えた世代',
+  'ジャンク箱から出てきたトランジスタ、型番が擦れて読めない',
+  '秋葉原のラジオデパート、迷路として観光名所に',
+  '「とりあえず電源入れてみよう」— 煙が出る前の最後の言葉',
+  'テスターの導通ブザー、深夜に鳴らすと家族が起きる',
+  'はんだごての電源を切り忘れて出かける夢を見た',
+  '「データシートに書いてある」「どこに？」「脚注の脚注」',
+  'USBケーブルが充電専用だった。2時間が溶けた',
+  '電解コンデンサの寿命、温度が10℃下がると約2倍に',
+  '水晶発振子の負荷容量を計算し間違えて、時計が微妙にズレる',
+  'デバッグ用のLEDが、量産基板にもそのまま残っている',
+  'ブレッドボードに挿した部品の足が曲がり、隣の列へお引っ越し',
+  '「ノイズ対策にフェライトコア」— 効いたかどうかはわからない',
+  'オペアンプの未使用回路、処理を忘れてひっそり発振中',
+  'シリアル通信が文字化け。ボーレートだった',
+  'TXとRX、クロスするかしないかで今日も議論',
+  '「プルアップ？プルダウン？」— どっちでもいいから付けろ',
+  'ピンヘッダを1ピンずらして挿す技、今日も炸裂',
+  '熱収縮チューブの通し忘れに気付くのは、はんだ付けの後',
+  'こて先を磨いたら、はんだのノリが別物に',
+  '鉛フリーはんだの融点、有鉛より約30℃高い',
+  'フラックスの煙が目にしみる。換気扇を回そう',
+  '3Dプリンタでケースを作ったら、穴の位置が1mmずれていた',
+  '基板の裏表を間違えて発注。ICのフットプリントが鏡写しに',
+  '「シルクの向きは確認しましたか？」— 発注後に聞かれても',
+  '部品表に載っていない部品が1個余った。怖い',
+  '部品が1個足りない。しかも送料無料ラインにちょうど届かない額',
+  '通販の「在庫あり」、カートに入れた瞬間に「取り寄せ」へ',
+  '半導体不足で、マイコン単体よりマイコン入りの家電の方が安い',
+  '抵抗を「とりあえず10kΩ」で済ませる人、意外と多い',
+  '「電圧はあるのに電流が流れない」— 接触不良でした',
+  'ワニ口クリップ同士がキス。ショートの火花',
+  'オシロのトリガ設定、毎回わからなくなる',
+  'ロジアナで見たら、I²Cアドレスが7bit表記と8bit表記で食い違い',
+  'SPIのモード0〜3、結局全部試すのが早い',
+  'Wi-Fi接続時にだけマイコンがリセットする謎。電源不足でした',
+  'パスコンはICの足元ギリギリに置け',
+  '「GNDベタは正義」— 基板設計の格言',
+  '配線は直角に曲げない派と45°派、今日も平行線',
+  '自作キーボードのはんだ付け、スイッチ100個で手首が悲鳴',
+  'スルーホールよりチップ部品の方が楽、と言う人と言わない人',
+  'ピンセットで挟んだ0603抵抗、宇宙へ旅立つ',
+  'ルーペを買ったら、自分のはんだの汚さが見えるようになった',
+  'イモはんだ、見た目は美味しそうだが導通しない',
+  'ブリッジを吸取線で吸ったら、パターンまで剥がれた',
+  '「コンデンサの耐圧は2倍以上で」— 余裕は正義',
+  'ACアダプタのセンタープラス・センターマイナス問題、未だ解決せず',
+  'DCジャックの5.5/2.1と5.5/2.5、見た目で見分けられない',
+  'リチウムイオン電池の取り扱い説明は最後まで読もう',
+  'モーターをマイコンに直結したら、回すたびにリセット',
+  'リレーのフライホイールダイオード、付け忘れ厳禁',
+  '7セグLEDのアノードコモンとカソードコモン、買い間違い',
+  '通販サイトの部品番号を暗記している人がいるらしい',
+  '「昔はこの部品、1個10円だった」— ベテランの口癖',
+  '真空管アンプの温かい音。電気代も温かい',
+  'ラジオ少年、気付けば還暦',
+  '初めて作ったゲルマラジオから聞こえた声、今も覚えている',
+  '昔の雑誌の製作記事、部品表の部品が全部ディスコン',
+  'ICソケットを使うか使わないか、人生の選択',
+  'ジャンパーピンの小ささ、年々目にしみる',
+  '老眼鏡とヘッドルーペ、電子工作の必需品',
+  '作業台の上で、部品の地層が形成されつつある',
+  'パーツケースのラベルと中身が違う。書いたのは自分',
+  '「いつか使うかも」で買った部品、10年眠っている',
+  'ジャンク市で買ったオシロが動いた。今日はいい日',
+  '中古テスターを開けたら、前の持ち主の電池が液漏れ',
+  '基板を洗浄したらピカピカに。ついでにシルクも消えた',
+  'ファームウェアの書き込みに失敗。マイコンが文鎮に',
+  'ヒューズ設定を間違えて、外部クロックがないと起きないマイコンが誕生',
+  'プログラミングは「Hello, World」、電子工作は「Lチカ」',
+  'プログラムは動いた。でも回路が動かない',
+  '回路は動いた。でもプログラムが動かない',
+  '両方動いた。ケースに入れたら動かない',
+  '静電気でMOSFETが昇天。冬の電子工作は危険',
+  '作業部屋に加湿器を導入。静電気対策です',
+  '「趣味は電子工作です」→「じゃあうちのテレビ直して」',
+  '家電修理を頼まれた結果、部品取りになった',
+  '古いノートPCのバッテリーが膨らんで、天板が浮いている',
+  'RS-232Cのコネクタ、引き出しの奥で静かに出番待ち',
+  'フロッピーディスクドライブで音楽を奏でる人がいるらしい',
+  'LEDの電流制限抵抗、計算すると中途半端な値。E系列から近いのを選ぶ',
+  'E12、E24、E96。抵抗の値はなぜか飛び飛び',
+  '「0Ωの抵抗って何に使うの？」— ジャンパーです',
+  'ツェナーダイオードで作った定電圧、意外と熱い',
+  'スイッチのチャタリング、ソフトで消すかハードで消すか',
+  '「ソフトで直せます」— ハード屋、敗北の瞬間',
+  '「ハードで直せます」— ソフト屋、敗北の瞬間',
+  '手巻きのコイル、何回巻いたか途中で忘れた',
+  '電磁誘導で光るLED、子どもに大ウケ',
+  '夏休みの自由研究で、親の電子工作魂に火がつく',
+  '孫にLチカを教えたら、翌日にはスマホから制御していた',
+  '数百円のマイコン、アポロ誘導コンピュータより高性能',
+  '「この回路、昔の雑誌で見た」— 半世紀ぶりの再会',
+  '量産化が決まった途端、部品が1種類だけ入手不可に',
+  '基板発注の最小ロットは5枚。4枚余る',
+  '余った基板、引き出しの中で永眠中',
+  'ダイソン球のはんだ付け、こて先が太陽熱で溶ける',
+  '量子チップのデバッグ、プローブを当てた瞬間に状態が変わる',
+  'FPGAの配置配線、達人は手で配置するらしい',
+  'SoCのデータシート、5000ページを突破',
+  'カスタムASICにバグ発見。修正にはマスク代がもう一回',
+];
+
+/* =========================================================
+   状態
+   ========================================================= */
+function defaults() {
+  return {e:0, earnedRun:0, earnedAll:0, clicks:0, clicksAll:0,
+    gens:GENS.map(()=>0), psus:PSUS.map(()=>0), ups:{}, ach:{},
+    patents:0, prestiges:0, junk:0, buffs:[], smoked:false, maxEps:0,
+    start:Date.now(), runStart:Date.now(), last:Date.now(),
+    buyAmt:'1', notation:'si', fx:true, tab:'up'};
+}
+let S = defaults();
+let D = {eps:0, raw:0, draw:0, cap:BASE_WATT, eff:1, clickVal:1, per:GENS.map(()=>0), gm:GENS.map(()=>1), wm:GENS.map(()=>1), glob:1, bp:1, bc:1, psuM:1, unitClick:1};
+const cnt = i => S.gens[i] || 0;
+const $ = s => document.querySelector(s);
+
+/* =========================================================
+   数値表示
+   ========================================================= */
+function fmtRaw(n) {
+  const e3 = Math.floor(Math.log10(n)/3);
+  return n < 1000 ? String(n) : (n/Math.pow(10,e3*3)) + SI[e3];
+}
+function fmt(n, small) {
+  if (!isFinite(n)) return '∞';
+  if (n < 0) return '-' + fmt(-n, small);
+  if (n < 1000) {
+    if (small && n !== Math.floor(n) && n < 100) return n < 10 ? String(+n.toFixed(2)) : n.toFixed(1);
+    return String(Math.floor(n));
+  }
+  const e3 = Math.floor(Math.log10(n)/3);
+  if (S.notation === 'sci' || e3 >= SI.length) return n.toExponential(2).replace('e+','e');
+  const v = n / Math.pow(10, e3*3);
+  return (v >= 100 ? v.toFixed(1) : v.toFixed(2)) + SI[e3];
+}
+function fmtW(w) {
+  if (w === 0) return '0 W';
+  if (w < 1) return (w*1000 < 10 ? (w*1000).toFixed(1) : Math.round(w*1000)) + ' mW';
+  const s = fmt(w, true);
+  return S.notation === 'sci' || /e/.test(s) ? s + ' W' : s.replace(/([a-zA-Z])$/, ' $1') .replace(/^([\d.]+)$/, '$1 ') + 'W';
+}
+function fmtTime(sec) {
+  sec = Math.floor(sec);
+  const h = Math.floor(sec/3600), m = Math.floor(sec%3600/60), s = sec%60;
+  return h ? `${h}時間${m}分` : m ? `${m}分${s}秒` : `${s}秒`;
+}
+
+/* =========================================================
+   計算
+   ========================================================= */
+function derive() {
+  const gm = GENS.map(()=>1), wm = GENS.map(()=>1);
+  let click = 1, pct = 0, glob = 1, psuM = 1;
+  for (const u of UPS) if (S.ups[u.id]) {
+    if (u.type === 'gen') gm[u.gen] *= u.mult;
+    else if (u.type === 'watt') wm[u.gen] *= u.mult;
+    else if (u.type === 'click') click *= u.mult;
+    else if (u.type === 'pct') pct += u.pct;
+    else if (u.type === 'global') glob *= u.mult;
+    else if (u.type === 'psu') psuM *= u.mult;
+  }
+  const achN = Object.keys(S.ach).length;
+  glob *= (1 + 0.01*achN) * (1 + 0.05*S.patents);
+  const now = Date.now();
+  let bp = 1, bc = 1;
+  for (const b of S.buffs) if (b.until > now) { if (b.type === 'prod') bp *= b.mult; else bc *= b.mult; }
+  let raw = 0, draw = 0;
+  const per = GENS.map((g,i) => {
+    const p = g.prod * cnt(i) * gm[i] * glob * bp;
+    raw += p; draw += g.watt * cnt(i) * wm[i];
+    return p;
+  });
+  let cap = BASE_WATT;
+  PSUS.forEach((p,i) => cap += p.watt * (S.psus[i]||0));
+  cap *= psuM;
+  const eff = draw <= cap ? 1 : Math.pow(cap/draw, 2);
+  const eps = raw * eff;
+  const unitClick = click * (1 + 0.05*S.patents);
+  D = {gm, wm, per, raw, draw, cap, eff, eps, glob, bp, bc, psuM, pct, unitClick,
+       clickVal: (unitClick + eps*pct) * bc};
+}
+
+function bulkCost(base, r, have, n) { return base * Math.pow(r, have) * (Math.pow(r, n) - 1) / (r - 1); }
+function maxAfford(base, r, have, bank) {
+  const n = Math.floor(Math.log(bank*(r-1) / (base*Math.pow(r, have)) + 1) / Math.log(r));
+  return Math.max(0, n);
+}
+function buyCount(base, r, have) {
+  if (S.buyAmt === 'max') return Math.max(1, maxAfford(base, r, have, S.e));
+  return +S.buyAmt;
+}
+
+function gain(v) { S.e += v; S.earnedRun += v; S.earnedAll += v; }
+
+function buyGen(i) {
+  if (!revealed(i)) return;
+  const g = GENS[i], n = buyCount(g.cost, R_GEN, cnt(i)), c = bulkCost(g.cost, R_GEN, cnt(i), n);
+  if (S.e < c) return;
+  S.e -= c; S.gens[i] += n;
+  derive(); boardDirty = true; updateUI();
+}
+function buyPsu(i) {
+  const p = PSUS[i], have = S.psus[i]||0, n = buyCount(p.cost, R_PSU, have), c = bulkCost(p.cost, R_PSU, have, n);
+  if (S.e < c) return;
+  S.e -= c; S.psus[i] = have + n;
+  derive(); updateUI();
+}
+function buyUp(id) {
+  const u = UPS.find(x => x.id === id);
+  if (!u || S.ups[id] || S.e < u.cost) return;
+  S.e -= u.cost; S.ups[id] = 1;
+  derive(); boardDirty = true; upKey = ''; updateUI();
+}
+function revealed(i) { return i === 0 || cnt(i) > 0 || cnt(i-1) > 0 || S.earnedAll >= GENS[i].cost; }
+
+/* =========================================================
+   基板（canvas）
+   ========================================================= */
+const cv = $('#board'), cx = cv.getContext('2d');
+const wrap = $('#boardWrap');
+const stat = document.createElement('canvas'), sx = stat.getContext('2d');
+const COLS = 12;
+let cell = 32, BW = 480, BH = 448, dpr = 1, boardDirty = true, boardKey = '';
+const sparks = [];
+
+function layoutBoard() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  BW = wrap.clientWidth || 480;
+  cell = BW / (COLS + 3);
+  BH = cell * (GENS.length + 2);
+  cv.style.height = BH + 'px';
+  cv.width = stat.width = Math.round(BW*dpr);
+  cv.height = stat.height = Math.round(BH*dpr);
+  boardDirty = true;
+}
+const rowY = i => cell * (1.5 + i);
+const slotX = j => cell * (3 + j);
+const busX = () => cell * 2.15;
+
+function rr(c, x, y, w, h, r) { c.beginPath(); c.roundRect ? c.roundRect(x,y,w,h,r) : c.rect(x,y,w,h); }
+function seeded(seed) { return () => (seed = (seed*16807) % 2147483647) / 2147483647; }
+
+function drawStatic() {
+  const c = sx;
+  c.setTransform(dpr,0,0,dpr,0,0);
+  // PCB
+  const gr = c.createLinearGradient(0,0,BW,BH);
+  gr.addColorStop(0,'#11573a'); gr.addColorStop(1,'#0b3f27');
+  c.fillStyle = gr; c.fillRect(0,0,BW,BH);
+  // ビア
+  const rnd = seeded(42);
+  c.fillStyle = 'rgba(0,0,0,.18)';
+  for (let k = 0; k < 90; k++) { c.beginPath(); c.arc(rnd()*BW, rnd()*BH, cell*0.05, 0, 7); c.fill(); }
+  // 取付穴
+  for (const [x,y] of [[cell*.45,cell*.45],[BW-cell*.45,cell*.45],[cell*.45,BH-cell*.45],[BW-cell*.45,BH-cell*.45]]) {
+    c.fillStyle = '#c9a54a'; c.beginPath(); c.arc(x,y,cell*.28,0,7); c.fill();
+    c.fillStyle = '#0b110d'; c.beginPath(); c.arc(x,y,cell*.16,0,7); c.fill();
+  }
+  // 電源レール
+  const top = cell*0.6, bot = BH - cell*0.6;
+  c.lineWidth = cell*0.14; c.lineCap = 'round';
+  c.strokeStyle = '#c4643a'; c.beginPath(); c.moveTo(cell*1.1, top); c.lineTo(BW-cell*1.1, top); c.stroke();
+  c.strokeStyle = '#7a8a94'; c.beginPath(); c.moveTo(cell*1.1, bot); c.lineTo(BW-cell*1.1, bot); c.stroke();
+  c.font = `${cell*0.36}px 'Share Tech Mono', monospace`; c.fillStyle = '#eef3ee'; c.textBaseline = 'middle';
+  c.fillText('+5V', BW - cell*1.0 - c.measureText('+5V').width - cell*0.4, top - cell*0.3);
+  c.fillText('GND', BW - cell*1.0 - c.measureText('GND').width - cell*0.4, bot + cell*0.3 > BH ? bot - cell*0.3 : bot - cell*0.3);
+  // 縦バス
+  c.strokeStyle = '#d8b04a'; c.lineWidth = cell*0.1;
+  c.beginPath(); c.moveTo(busX(), top); c.lineTo(busX(), bot); c.stroke();
+  // 行
+  GENS.forEach((g,i) => {
+    const y = rowY(i), rev = revealed(i), n = cnt(i);
+    c.globalAlpha = rev ? 1 : 0.28;
+    if (n > 0) {
+      c.strokeStyle = '#d8b04a'; c.lineWidth = cell*0.07;
+      c.beginPath(); c.moveTo(busX(), y); c.lineTo(slotX(COLS-1)+cell*0.45, y); c.stroke();
+      c.fillStyle = '#d8b04a'; c.beginPath(); c.arc(busX(), y, cell*0.09, 0, 7); c.fill();
+    }
+    c.fillStyle = '#eef3ee';
+    c.font = `${cell*0.42}px 'Share Tech Mono', monospace`;
+    c.fillText(rev ? g.ref : '?', cell*0.55, y - (n > 0 ? cell*0.12 : 0));
+    if (n > 0) { c.font = `${cell*0.3}px 'Share Tech Mono', monospace`; c.fillStyle = '#d8b04a'; c.fillText('×'+fmt(n), cell*0.55, y + cell*0.24); }
+    const vis = Math.min(n, COLS);
+    for (let j = 0; j < COLS; j++) {
+      const x = slotX(j);
+      if (j < vis) drawComp(c, g.id, x, y, cell*0.92, D.eff > 0.45);
+      else {
+        c.strokeStyle = 'rgba(238,243,238,.22)'; c.lineWidth = 1;
+        c.strokeRect(x - cell*0.38, y - cell*0.2, cell*0.76, cell*0.4);
+        c.fillStyle = '#c47a3a';
+        for (const dx of [-0.24, 0.24]) {
+          c.beginPath(); c.arc(x + dx*cell, y, cell*0.08, 0, 7); c.fill();
+          c.fillStyle = '#0b110d'; c.beginPath(); c.arc(x + dx*cell, y, cell*0.03, 0, 7); c.fill(); c.fillStyle = '#c47a3a';
+        }
+      }
+    }
+    c.globalAlpha = 1;
+  });
+  // シルク
+  c.fillStyle = 'rgba(238,243,238,.55)';
+  c.font = `${cell*0.3}px 'Share Tech Mono', monospace`;
+  c.fillText('KAIRO-KOUBOU  REV.' + String.fromCharCode(65 + Math.min(S.prestiges, 25)), cell*1.1, BH - cell*0.25);
+}
+
+function drawComp(c, id, x, y, s, lit) {
+  const u = s/2;
+  c.save(); c.translate(x, y);
+  const leads = (pts) => { c.strokeStyle = '#c8ccd0'; c.lineWidth = Math.max(1, s*0.05); c.beginPath(); for (const [a,b,d,e] of pts) { c.moveTo(a,b); c.lineTo(d,e); } c.stroke(); };
+  const label = (t, col, sz) => { c.fillStyle = col || '#cfd3d6'; c.font = `${s*(sz||0.17)}px 'Share Tech Mono', monospace`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, 0, 0); };
+  switch (id) {
+    case 'res': {
+      leads([[-u*.95,0,u*.95,0]]);
+      rr(c, -u*.6, -u*.23, u*1.2, u*.46, u*.2); c.fillStyle = '#d9c08f'; c.fill();
+      ['#6b3e1f','#111','#e07b1a','#c9a227'].forEach((b,k) => { c.fillStyle = b; c.fillRect(-u*.42 + k*u*.25 + (k===3?u*.08:0), -u*.23, u*.1, u*.46); });
+      break; }
+    case 'led': {
+      leads([[-u*.2,u*.2,-u*.2,u*.9],[u*.2,u*.2,u*.2,u*.75]]);
+      if (lit) { c.shadowColor = '#ff2a1a'; c.shadowBlur = s*0.6; }
+      const g = c.createRadialGradient(-u*.12,-u*.2,u*.05,0,-u*.05,u*.45);
+      g.addColorStop(0, lit ? '#fff0ea' : '#ff9a90'); g.addColorStop(.35, lit ? '#ff4030' : '#b8291f'); g.addColorStop(1, lit ? '#c0150c' : '#5c0f0a');
+      c.fillStyle = g; c.beginPath(); c.arc(0, -u*.08, u*.4, 0, 7); c.fill();
+      c.shadowBlur = 0; c.fillStyle = '#9b1a12'; c.fillRect(-u*.46, u*.18, u*.92, u*.1);
+      break; }
+    case 'cap': {
+      leads([[-u*.18,u*.45,-u*.18,u*.9],[u*.18,u*.45,u*.18,u*.9]]);
+      rr(c, -u*.36, -u*.6, u*.72, u*1.1, u*.1); c.fillStyle = '#1f4fa8'; c.fill();
+      c.fillStyle = '#c9d6ea'; c.fillRect(u*.12, -u*.6, u*.16, u*1.1);
+      c.fillStyle = '#9aa4b0'; c.beginPath(); c.ellipse(0, -u*.6, u*.36, u*.1, 0, 0, 7); c.fill();
+      c.strokeStyle = '#6b7684'; c.lineWidth = 1; c.beginPath(); c.moveTo(-u*.2,-u*.6); c.lineTo(u*.2,-u*.6); c.stroke();
+      break; }
+    case 'tr': {
+      leads([[-u*.25,u*.15,-u*.32,u*.9],[0,u*.15,0,u*.9],[u*.25,u*.15,u*.32,u*.9]]);
+      c.fillStyle = '#1c1c1e'; c.beginPath(); c.moveTo(-u*.45, u*.2); c.arc(0, u*.2, u*.45, Math.PI, 0); c.closePath(); c.fill();
+      c.translate(0, -u*.02); label('C1815', '#9aa0a6', 0.12);
+      break; }
+    case 'ic555': case 'opamp': {
+      c.fillStyle = '#c8ccd0';
+      for (let k = 0; k < 4; k++) { c.fillRect(-u*.62, -u*.48 + k*u*.3, u*.16, u*.1); c.fillRect(u*.46, -u*.48 + k*u*.3, u*.16, u*.1); }
+      rr(c, -u*.48, -u*.62, u*.96, u*1.24, u*.06); c.fillStyle = '#1b1c1e'; c.fill();
+      c.fillStyle = '#0b0b0c'; c.beginPath(); c.arc(0, -u*.62, u*.13, 0, Math.PI); c.fill();
+      c.save(); c.rotate(-Math.PI/2); label(id === 'ic555' ? 'NE555' : 'LM358', '#b9bec4', 0.15); c.restore();
+      break; }
+    case 'mcu': {
+      c.fillStyle = '#c8ccd0';
+      for (let k = 0; k < 7; k++) { c.fillRect(-u*.84 + k*u*.27, -u*.5, u*.09, u*.14); c.fillRect(-u*.84 + k*u*.27, u*.36, u*.09, u*.14); }
+      rr(c, -u*.95, -u*.37, u*1.9, u*.74, u*.05); c.fillStyle = '#1b1c1e'; c.fill();
+      c.fillStyle = '#0b0b0c'; c.beginPath(); c.arc(-u*.95, 0, u*.12, -Math.PI/2, Math.PI/2); c.fill();
+      label('AVR', '#b9bec4', 0.2);
+      break; }
+    case 'fpga': {
+      c.strokeStyle = '#c8ccd0'; c.lineWidth = Math.max(1, s*0.025);
+      c.beginPath();
+      for (let k = 0; k < 8; k++) { const p = -u*.5 + k*u*.143;
+        c.moveTo(p, -u*.85); c.lineTo(p, -u*.6); c.moveTo(p, u*.6); c.lineTo(p, u*.85);
+        c.moveTo(-u*.85, p); c.lineTo(-u*.6, p); c.moveTo(u*.6, p); c.lineTo(u*.85, p); }
+      c.stroke();
+      c.fillStyle = '#222428'; c.fillRect(-u*.62, -u*.62, u*1.24, u*1.24);
+      c.fillStyle = '#4a4d52'; c.beginPath(); c.arc(-u*.42, -u*.42, u*.07, 0, 7); c.fill();
+      label('FPGA', '#c3c7cc', 0.17);
+      break; }
+    case 'soc': {
+      c.fillStyle = '#1f6b45'; c.fillRect(-u*.82, -u*.82, u*1.64, u*1.64);
+      c.fillStyle = '#c9a54a';
+      for (let a = 0; a < 6; a++) for (let b = 0; b < 6; b++) if (a===0||b===0||a===5||b===5) c.fillRect(-u*.72 + a*u*.27, -u*.72 + b*u*.27, u*.06, u*.06);
+      const g = c.createLinearGradient(-u*.5, -u*.5, u*.5, u*.5); g.addColorStop(0,'#e9ecef'); g.addColorStop(1,'#9aa1a8');
+      c.fillStyle = g; c.fillRect(-u*.5, -u*.5, u*1.0, u*1.0);
+      label('SoC', '#3b4046', 0.2);
+      break; }
+    case 'asic': {
+      const g = c.createLinearGradient(-u*.7, -u*.7, u*.7, u*.7);
+      g.addColorStop(0,'#6a3fb0'); g.addColorStop(.5,'#c9a54a'); g.addColorStop(1,'#2fb0a8');
+      c.fillStyle = g; c.fillRect(-u*.7, -u*.7, u*1.4, u*1.4);
+      c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = 1; c.beginPath();
+      for (let k = 1; k < 5; k++) { const p = -u*.7 + k*u*.28; c.moveTo(p, -u*.7); c.lineTo(p, u*.7); c.moveTo(-u*.7, p); c.lineTo(u*.7, p); }
+      c.stroke();
+      break; }
+    case 'qpu': {
+      if (lit) { c.shadowColor = '#5ee7ff'; c.shadowBlur = s*0.35; }
+      c.strokeStyle = '#d8b04a'; c.lineWidth = Math.max(1, s*0.06);
+      for (const r of [.78, .52, .26]) { c.beginPath(); c.arc(0, 0, u*r, 0, 7); c.stroke(); }
+      c.shadowBlur = 0;
+      c.beginPath(); for (let k = 0; k < 6; k++) { const a = k*Math.PI/3; c.moveTo(Math.cos(a)*u*.26, Math.sin(a)*u*.26); c.lineTo(Math.cos(a)*u*.78, Math.sin(a)*u*.78); } c.stroke();
+      c.fillStyle = lit ? '#bff6ff' : '#567'; c.beginPath(); c.arc(0, 0, u*.12, 0, 7); c.fill();
+      break; }
+    case 'dyson': {
+      if (lit) { c.shadowColor = '#ffb020'; c.shadowBlur = s*0.5; }
+      const g = c.createRadialGradient(0,0,u*.05,0,0,u*.5);
+      g.addColorStop(0,'#fff6c8'); g.addColorStop(.5,'#ffb020'); g.addColorStop(1,'#d2420a');
+      c.fillStyle = g; c.beginPath(); c.arc(0, 0, u*.45, 0, 7); c.fill();
+      c.shadowBlur = 0; c.strokeStyle = '#c9d2da'; c.lineWidth = Math.max(1, s*0.04);
+      c.beginPath(); c.ellipse(0, 0, u*.9, u*.3, -0.4, 0, 7); c.stroke();
+      break; }
+  }
+  c.restore();
+}
+
+function drawIcon(canvas, id) {
+  const c = canvas.getContext('2d');
+  c.setTransform(1,0,0,1,0,0);
+  c.fillStyle = '#0f4d30'; c.fillRect(0, 0, canvas.width, canvas.height);
+  drawComp(c, id, canvas.width/2, canvas.height/2, canvas.width*0.78, true);
+}
+
+function sparkAt(x, y) {
+  if (!S.fx) return;
+  for (let k = 0; k < 10; k++) {
+    const a = Math.random()*Math.PI*2, v = 60 + Math.random()*160;
+    sparks.push({x, y, vx:Math.cos(a)*v, vy:Math.sin(a)*v - 60, life:0.35 + Math.random()*0.3, t:0});
+  }
+  sparks.push({x, y, blob:true, life:0.5, t:0});
+  if (sparks.length > 300) sparks.splice(0, sparks.length - 300);
+}
+
+let lastFrame = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - lastFrame)/1000); lastFrame = now;
+  const key = S.gens.join(',') + '|' + GENS.map((_,i) => revealed(i) ? 1 : 0).join('') + '|' + (D.eff > 0.45) + '|' + S.notation + '|' + S.prestiges;
+  if (boardDirty || key !== boardKey) { drawStatic(); boardKey = key; boardDirty = false; }
+  const c = cx;
+  c.setTransform(1,0,0,1,0,0);
+  c.drawImage(stat, 0, 0);
+  c.setTransform(dpr,0,0,dpr,0,0);
+  const t = now/1000;
+  const brown = D.eff < 1;
+  // 電流の流れ
+  if (S.fx) {
+    c.save();
+    c.shadowBlur = 6;
+    const col = brown ? '#ff7a59' : '#fff1a8';
+    c.shadowColor = col; c.fillStyle = col;
+    if (brown) c.globalAlpha = 0.55 + 0.45*Math.abs(Math.sin(t*13));
+    const top = cell*0.6, bot = BH - cell*0.6;
+    if (D.eps > 0) {
+      const sp = 0.15 + 0.05*Math.log10(1 + D.eps);
+      for (let k = 0; k < 6; k++) { const p = (t*sp + k/6) % 1; c.beginPath(); c.arc(busX(), top + (bot-top)*p, cell*0.07, 0, 7); c.fill(); }
+    }
+    GENS.forEach((g,i) => {
+      if (!cnt(i)) return;
+      const y = rowY(i), x0 = busX(), x1 = slotX(COLS-1) + cell*0.45;
+      const sp = Math.min(1.2, 0.08 + 0.06*Math.log10(1 + D.per[i]*D.eff));
+      const nd = 3 + Math.min(4, Math.floor(Math.log10(1 + cnt(i))*2));
+      for (let k = 0; k < nd; k++) { const p = (t*sp + k/nd + i*0.13) % 1; c.beginPath(); c.arc(x0 + (x1-x0)*p, y + cell*0.32, cell*0.045, 0, 7); c.fill(); }
+    });
+    c.restore();
+  }
+  // 火花
+  for (let k = sparks.length - 1; k >= 0; k--) {
+    const p = sparks[k]; p.t += dt;
+    if (p.t >= p.life) { sparks.splice(k, 1); continue; }
+    const a = 1 - p.t/p.life;
+    if (p.blob) {
+      c.fillStyle = `rgba(220,226,232,${a*0.9})`;
+      c.beginPath(); c.arc(p.x, p.y, cell*0.18*(1 + p.t), 0, 7); c.fill();
+      c.strokeStyle = `rgba(255,255,255,${a*0.5})`; c.lineWidth = 2;
+      c.beginPath(); c.arc(p.x, p.y, cell*0.3 + p.t*cell*2, 0, 7); c.stroke();
+    } else {
+      p.vy += 420*dt; const nx = p.x + p.vx*dt, ny = p.y + p.vy*dt;
+      c.strokeStyle = `rgba(255,${180 + 60*a|0},80,${a})`; c.lineWidth = 1.6;
+      c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(nx, ny); c.stroke();
+      p.x = nx; p.y = ny;
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+/* =========================================================
+   クリック・ジャンク箱
+   ========================================================= */
+function solder(x, y) {
+  derive();
+  const v = D.clickVal;
+  gain(v); S.clicks++; S.clicksAll++;
+  sparkAt(x, y);
+  floatText(x, y, '+' + fmt(v, true));
+  if (S.clicksAll >= 5) $('#clickHint').style.display = 'none';
+}
+function floatText(x, y, txt) {
+  if (wrap.querySelectorAll('.float').length > 25) return;
+  const d = document.createElement('div');
+  d.className = 'float'; d.textContent = txt;
+  d.style.left = x + 'px'; d.style.top = y + 'px';
+  wrap.appendChild(d);
+  setTimeout(() => d.remove(), 900);
+}
+cv.addEventListener('pointerdown', e => {
+  const r = cv.getBoundingClientRect();
+  solder(e.clientX - r.left, e.clientY - r.top);
+});
+document.addEventListener('keydown', e => {
+  if ((e.code === 'Space' || e.code === 'Enter') && !/INPUT|TEXTAREA|BUTTON/.test(document.activeElement.tagName)) {
+    e.preventDefault();
+    if (e.repeat) return;
+    solder(BW*(0.3 + Math.random()*0.5), BH*(0.2 + Math.random()*0.6));
+  }
+});
+
+const rand = (a, b) => a + Math.random()*(b - a);
+let nextJunk = Date.now() + rand(40e3, 90e3), junkEl = null, junkUntil = 0;
+function junkTick(now) {
+  if (!junkEl && now >= nextJunk) spawnJunk();
+  if (junkEl && now > junkUntil) { junkEl.remove(); junkEl = null; nextJunk = now + rand(60e3, 150e3); }
+}
+function spawnJunk() {
+  junkEl = document.createElement('button');
+  junkEl.className = 'junk'; junkEl.title = 'ジャンク箱'; junkEl.innerHTML = '<span>JUNK</span>';
+  junkEl.style.left = rand(6, Math.max(8, 100 - 88/BW*100 - 6)) + '%';
+  junkEl.style.top = rand(8, Math.max(10, 100 - 64/BH*100 - 8)) + '%';
+  junkEl.addEventListener('click', openJunk);
+  wrap.appendChild(junkEl);
+  junkUntil = Date.now() + 13000;
+}
+function openJunk(e) {
+  e.stopPropagation();
+  const r = Math.random(); S.junk++;
+  derive();
+  if (r < 0.45) {
+    const v = Math.min(S.e*0.15, D.eps*600) + 13;
+    gain(v); toast(`未使用のArduinoを発見！`, 'gold', `+${fmt(v)} e⁻`);
+  } else if (r < 0.85) {
+    S.buffs.push({type:'prod', mult:7, until:Date.now() + 40000, name:'オーバークロック ×7'});
+    toast('オーバークロック！', 'gold', '40秒間 生産量 ×7');
+  } else {
+    S.buffs.push({type:'click', mult:77, until:Date.now() + 12000, name:'連続はんだ付け ×77'});
+    toast('連続はんだ付けモード！', 'gold', '12秒間 クリック ×77');
+  }
+  const rect = junkEl.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+  sparkAt(rect.left - wr.left + 44, rect.top - wr.top + 32);
+  junkEl.remove(); junkEl = null; nextJunk = Date.now() + rand(60e3, 150e3);
+  derive(); updateUI();
+}
+
+/* =========================================================
+   UI
+   ========================================================= */
+function toast(msg, kind, sub) {
+  const d = document.createElement('div');
+  d.className = 'toast ' + (kind || '');
+  d.textContent = msg;
+  if (sub) { const s = document.createElement('small'); s.textContent = sub; d.appendChild(s); }
+  $('#toasts').appendChild(d);
+  setTimeout(() => { d.style.transition = 'opacity .4s'; d.style.opacity = 0; setTimeout(() => d.remove(), 400); }, 3800);
+}
+
+const genRefs = [], psuRefs = [];
+function makeCard(iconHtml) {
+  const b = document.createElement('button');
+  b.className = 'card';
+  b.innerHTML = `${iconHtml}<div><div><span class="nm"></span><span class="sub"></span></div><div class="cd"></div><div class="cf"><span class="cost"></span><span class="rate"></span></div></div><div class="count"></div>`;
+  const q = s => b.querySelector(s);
+  return {b, nm:q('.nm'), sub:q('.sub'), cd:q('.cd'), cost:q('.cost'), rate:q('.rate'), count:q('.count'), ico:q('.ico, .badge')};
+}
+function buildShop() {
+  const el = $('#shop');
+  GENS.forEach((g,i) => {
+    const r = makeCard('<canvas class="ico" width="96" height="96"></canvas>');
+    r.b.addEventListener('click', () => buyGen(i));
+    drawIcon(r.ico, g.id);
+    el.appendChild(r.b); genRefs.push(r);
+  });
+  const pl = $('#psuList');
+  PSUS.forEach((p,i) => {
+    const r = makeCard(`<div class="badge b-psu">${p.abbr}</div>`);
+    r.b.addEventListener('click', () => buyPsu(i));
+    r.nm.textContent = p.name; r.sub.textContent = p.sub;
+    pl.appendChild(r.b); psuRefs.push(r);
+  });
+}
+function setCls(el, cls, on) { if (el.classList.contains(cls) !== on) el.classList.toggle(cls, on); }
+function setTxt(el, t) { if (el.textContent !== t) el.textContent = t; }
+
+function updateShop() {
+  let shownLocked = false;
+  GENS.forEach((g,i) => {
+    const r = genRefs[i], rev = revealed(i), have = cnt(i);
+    if (!rev) {
+      r.b.style.display = shownLocked ? 'none' : '';
+      shownLocked = true;
+      setCls(r.b, 'locked', true); setCls(r.b, 'can', false); setCls(r.b, 'cant', false);
+      setTxt(r.nm, '？？？'); setTxt(r.sub, ''); setTxt(r.cd, '未発見の部品'); setTxt(r.cost, ''); setTxt(r.rate, ''); setTxt(r.count, '');
+      r.ico.style.visibility = 'hidden';
+      return;
+    }
+    r.b.style.display = ''; r.ico.style.visibility = '';
+    setCls(r.b, 'locked', false);
+    const n = buyCount(g.cost, R_GEN, have), c = bulkCost(g.cost, R_GEN, have, n), ok = S.e >= c;
+    setCls(r.b, 'can', ok); setCls(r.b, 'cant', !ok);
+    setTxt(r.nm, g.name); setTxt(r.sub, g.sub); setTxt(r.cd, g.desc);
+    setTxt(r.cost, `${n > 1 ? '×' + n + ' ' : ''}${fmt(c)} e⁻`);
+    const unit = g.prod * D.gm[i] * D.glob * D.bp;
+    setTxt(r.rate, `+${fmt(unit, true)}/s · ${fmtW(g.watt * D.wm[i])}`);
+    setTxt(r.count, have ? fmt(have) : '');
+    r.b.title = have ? `合計 ${fmt(D.per[i]*D.eff, true)} e⁻/s（全体の ${(D.eps ? D.per[i]*D.eff/D.eps*100 : 0).toFixed(1)}%）` : '';
+  });
+  let canPsu = 0;
+  PSUS.forEach((p,i) => {
+    const r = psuRefs[i], have = S.psus[i]||0;
+    const vis = i === 0 || have > 0 || (S.psus[i-1]||0) > 0 || S.earnedAll >= p.cost*0.5;
+    r.b.style.display = vis ? '' : 'none';
+    const n = buyCount(p.cost, R_PSU, have), c = bulkCost(p.cost, R_PSU, have, n), ok = S.e >= c;
+    if (vis && ok) canPsu++;
+    setCls(r.b, 'can', ok); setCls(r.b, 'cant', !ok);
+    setTxt(r.cd, `容量 +${fmtW(p.watt * D.psuM)} / 台`);
+    setTxt(r.cost, `${n > 1 ? '×' + n + ' ' : ''}${fmt(c)} e⁻`);
+    setTxt(r.rate, have ? `計 ${fmtW(p.watt*have*D.psuM)}` : '');
+    setTxt(r.count, have ? fmt(have) : '');
+  });
+  const dot = $('#psuDot');
+  dot.hidden = !(canPsu && D.draw > D.cap*0.8);
+  setTxt(dot, '!');
+}
+
+let upKey = '';
+function upBadge(u) {
+  if (u.type === 'gen') return `<canvas class="ico" width="96" height="96" data-g="${GENS[u.gen].id}"></canvas>`;
+  const m = {click:['b-click','IRON'], pct:['b-click','IRON+'], global:['b-global','TEST'], psu:['b-psu','PSU'], watt:['b-watt','LOW-P']}[u.type];
+  return `<div class="badge ${m[0]}">${m[1]}</div>`;
+}
+function updateUps() {
+  const list = UPS.filter(u => !S.ups[u.id] && u.unlock()).sort((a,b) => a.cost - b.cost);
+  const key = list.map(u => u.id).join();
+  const el = $('#upList');
+  if (key !== upKey) {
+    upKey = key;
+    el.innerHTML = '';
+    if (!list.length) el.innerHTML = '<div class="empty">解禁された強化はまだありません。<br>部品を集めよう。</div>';
+    for (const u of list) {
+      const r = makeCard(upBadge(u));
+      r.b.dataset.id = u.id; r.b.dataset.cost = u.cost;
+      r.nm.textContent = u.name; r.cd.textContent = u.desc; r.cost.textContent = fmt(u.cost) + ' e⁻';
+      r.b.addEventListener('click', () => buyUp(u.id));
+      if (u.type === 'gen') drawIcon(r.ico, GENS[u.gen].id);
+      el.appendChild(r.b);
+    }
+    setTxt($('#upOwnedH'), `購入済み: ${Object.keys(S.ups).length} / ${UPS.length}`);
+  }
+  let can = 0;
+  for (const b of el.children) {
+    if (!b.dataset.cost) continue;
+    const ok = S.e >= +b.dataset.cost; if (ok) can++;
+    setCls(b, 'can', ok); setCls(b, 'cant', !ok);
+  }
+  const dot = $('#upDot'); dot.hidden = !can; setTxt(dot, String(can));
+}
+
+function updateHeader() {
+  setTxt($('#eNum'), fmt(S.e));
+  setTxt($('#eRate'), fmt(D.eps, true));
+  setTxt($('#cVal'), fmt(D.clickVal, true));
+  setTxt($('#pTxt'), `${fmtW(D.draw)} / ${fmtW(D.cap)}`);
+  const ratio = D.cap ? D.draw / D.cap : 0;
+  const f = $('#pFill');
+  f.style.width = Math.min(100, ratio*100) + '%';
+  f.style.background = ratio > 1 ? 'var(--bad)' : ratio > 0.8 ? 'var(--warn)' : 'var(--ok)';
+  setCls($('#power'), 'brown', ratio > 1);
+  setTxt($('#pSt'), ratio > 1 ? `⚠ 電圧降下！ 効率 ${(D.eff*100).toFixed(0)}% — 電源を増設` : ratio > 0.8 ? '電源 余裕少なめ' : '電源OK');
+  setTxt($('#sRun'), fmt(S.earnedRun));
+  setTxt($('#sMul'), '×' + (D.glob*D.bp).toFixed(2));
+  setTxt($('#sPat'), `${S.patents}（+${S.patents*5}%）`);
+  setTxt($('#sAch'), `${Object.keys(S.ach).length} / ${ACH.length}`);
+  const now = Date.now();
+  const bh = S.buffs.filter(b => b.until > now).map(b => `<span class="buff">${b.name} ${Math.ceil((b.until-now)/1000)}s</span>`).join('');
+  const be = $('#buffs'); if (be.innerHTML !== bh) be.innerHTML = bh;
+  setCls(wrap, 'oc', S.buffs.some(b => b.type === 'prod' && b.until > now));
+}
+
+function updateAch() {
+  const el = $('#achList');
+  if (el.children.length !== ACH.length) {
+    el.innerHTML = ACH.map(a => `<div class="ac" data-id="${a.id}"><b></b><span></span></div>`).join('');
+  }
+  ACH.forEach((a,k) => {
+    const d = el.children[k], got = !!S.ach[a.id];
+    setCls(d, 'got', got);
+    setTxt(d.firstChild, got ? a.name : '？？？');
+    setTxt(d.lastChild, a.desc);
+  });
+  setTxt($('#achH'), `解除 ${Object.keys(S.ach).length} / ${ACH.length} — 実績1つにつき生産量 +1%`);
+}
+
+function patentGain() { return Math.max(0, Math.floor(Math.cbrt(S.earnedAll / 1e9)) - S.patents); }
+function updatePre() {
+  const g = patentGain();
+  const next = Math.pow(S.patents + g + 1, 3) * 1e9;
+  const html = `<div class="pp">
+    <div>基板を<b>量産化</b>すると、部品・電源・強化・電子はすべてリセットされます。<br>代わりに累計獲得量に応じて<b style="color:var(--gold)">特許</b>を取得。特許1件につき全生産量とクリックが <b>+5%</b>（永続）。</div>
+    <div style="margin-top:10px">保有特許 <span class="n">${S.patents}</span>　→　今量産すると <span class="n" style="color:var(--ok)">+${g}</span></div>
+    <div class="note-s">次の特許まで: 累計 ${fmt(next)} e⁻（現在 ${fmt(S.earnedAll)}）</div>
+    <div class="row"><button class="btn" id="preBtn" ${g < 1 ? 'disabled' : ''}>量産化する（REV.${String.fromCharCode(66 + Math.min(S.prestiges, 24))} へ）</button></div>
+    <div class="note-s">量産化回数: ${S.prestiges}　実績と特許は引き継がれます。</div></div>`;
+  const box = $('#preBox');
+  if (box.dataset.h !== html) { box.innerHTML = html; box.dataset.h = html; $('#preBtn').onclick = prestige; }
+}
+function prestige() {
+  const g = patentGain();
+  if (g < 1) return;
+  if (!confirm(`量産化して特許を ${g} 件取得します。\n部品・電源・強化・電子はリセットされます。よろしいですか？`)) return;
+  const keep = S, n = defaults();
+  for (const k of ['earnedAll','clicksAll','ach','junk','smoked','maxEps','start','notation','fx','buyAmt','tab','newsBag','newsPos']) n[k] = keep[k];
+  n.patents = keep.patents + g; n.prestiges = keep.prestiges + 1;
+  S = n; upKey = ''; boardDirty = true;
+  derive(); save(); updateUI();
+  toast(`量産化完了！ 特許 +${g}`, 'gold', `全生産量 +${S.patents*5}%`);
+}
+
+function updateSet() {
+  const box = $('#setBox');
+  if (!box.dataset.built) {
+    box.dataset.built = 1;
+    box.innerHTML = `
+      <div class="sec">表示</div>
+      <div class="row"><button class="btn ghost" id="notBtn"></button><button class="btn ghost" id="fxBtn"></button></div>
+      <div class="sec">統計</div>
+      <div class="kv" id="stats"></div>
+      <div class="sec">セーブデータ</div>
+      <div class="row"><button class="btn ghost" id="saveBtn">今すぐ保存</button><button class="btn ghost" id="expBtn">エクスポート</button><button class="btn ghost" id="impBtn">インポート</button></div>
+      <textarea id="saveTxt" placeholder="エクスポートしたデータがここに出ます。インポートするときはここに貼り付けてから「インポート」"></textarea>
+      <div class="row"><button class="btn danger" id="resetBtn">全データ消去</button></div>
+      <div class="note-s" style="margin-top:10px">自動保存: 15秒ごと（ブラウザの localStorage）。留守中も50%の効率で生産します（最大24時間）。</div>`;
+    $('#notBtn').onclick = () => { S.notation = S.notation === 'si' ? 'sci' : 'si'; boardDirty = true; upKey = ''; updateUI(); };
+    $('#fxBtn').onclick = () => { S.fx = !S.fx; updateUI(); };
+    $('#saveBtn').onclick = () => { save(); toast('保存しました'); };
+    $('#expBtn').onclick = () => { $('#saveTxt').value = btoa(unescape(encodeURIComponent(JSON.stringify(S)))); $('#saveTxt').select(); };
+    $('#impBtn').onclick = () => {
+      try { const o = JSON.parse(decodeURIComponent(escape(atob($('#saveTxt').value.trim())))); load(o); save(); toast('インポートしました'); }
+      catch (err) { toast('インポート失敗: データが壊れています'); }
+    };
+    $('#resetBtn').onclick = () => {
+      if (!confirm('本当に全データを消去しますか？（取り消せません）')) return;
+      S = defaults(); upKey = ''; boardDirty = true; save(); location.reload();
+    };
+  }
+  setTxt($('#notBtn'), '数値表記: ' + (S.notation === 'si' ? 'SI接頭辞 (k, M, G…)' : '指数 (1.23e9)'));
+  setTxt($('#fxBtn'), 'エフェクト: ' + (S.fx ? 'ON' : 'OFF'));
+  const now = Date.now();
+  const kv = [['累計獲得（全期間）', fmt(S.earnedAll)], ['今回の獲得', fmt(S.earnedRun)], ['最高 e⁻/s', fmt(S.maxEps, true)],
+    ['はんだ付け回数', fmt(S.clicksAll)], ['開けたジャンク箱', fmt(S.junk)], ['部品総数', fmt(S.gens.reduce((a,b)=>a+b,0))],
+    ['プレイ時間', fmtTime((now - S.start)/1000)], ['今回の経過', fmtTime((now - S.runStart)/1000)]]
+    .map(([k,v]) => `<span>${k}</span><span>${v}</span>`).join('');
+  const st = $('#stats'); if (st.innerHTML !== kv) st.innerHTML = kv;
+}
+
+function updateUI() {
+  updateHeader(); updateShop(); updateUps();
+  const tab = S.tab;
+  if (tab === 'ach') updateAch();
+  if (tab === 'pre') updatePre();
+  if (tab === 'set') updateSet();
+  for (const b of $('#amt').children) setCls(b, 'on', b.dataset.a === String(S.buyAmt));
+}
+
+document.addEventListener('mousedown', e => { if (e.target.closest('button')) e.preventDefault(); });
+$('#amt').addEventListener('click', e => { const a = e.target.dataset.a; if (a) { S.buyAmt = a; updateUI(); } });
+function showTab(t) {
+  S.tab = t;
+  for (const b of $('#tabs').children) setCls(b, 'on', b.dataset.t === t);
+  document.querySelectorAll('.tab').forEach(d => setCls(d, 'on', d.id === 't-' + t));
+  updateUI();
+}
+$('#tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) showTab(b.dataset.t); });
+
+/* =========================================================
+   実績・ニュース
+   ========================================================= */
+function checkAch() {
+  for (const a of ACH) if (!S.ach[a.id] && a.test()) {
+    S.ach[a.id] = 1;
+    toast(`実績解除: ${a.name}`, 'ach', a.desc + '（生産量 +1%）');
+  }
+}
+// シャッフルバッグ: 全ニュースを一巡するまで同じものは出さない。位置はセーブに残すのでリロードしても重複しない
+function shuffledNews(avoidFirst) {
+  const a = NEWS.map((_,i) => i);
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*(i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  if (a[0] === avoidFirst) [a[0], a[a.length-1]] = [a[a.length-1], a[0]];
+  return a;
+}
+function nextNews() {
+  const bag = S.newsBag;
+  if (!Array.isArray(bag) || bag.length !== NEWS.length || !(S.newsPos >= 0)) { S.newsBag = shuffledNews(-1); S.newsPos = 0; }
+  else if (S.newsPos >= bag.length) { S.newsBag = shuffledNews(bag[bag.length-1]); S.newsPos = 0; }
+  const idx = S.newsBag[S.newsPos++];
+  const m = $('#news');
+  m.style.opacity = 0;
+  setTimeout(() => { m.textContent = NEWS[idx]; m.style.opacity = 1; }, 400);
+}
+
+/* =========================================================
+   セーブ／ロード
+   ========================================================= */
+function save() {
+  S.last = Date.now();
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {}
+}
+function load(o) {
+  const d = defaults();
+  S = Object.assign(d, o);
+  S.gens = GENS.map((_,i) => +(o.gens && o.gens[i]) || 0);
+  S.psus = PSUS.map((_,i) => +(o.psus && o.psus[i]) || 0);
+  S.ups = o.ups || {}; S.ach = o.ach || {}; S.buffs = Array.isArray(o.buffs) ? o.buffs : [];
+  upKey = ''; boardDirty = true;
+  derive();
+}
+function boot() {
+  let raw = null;
+  try { raw = localStorage.getItem(SAVE_KEY); } catch (e) {}
+  if (raw) {
+    try {
+      load(JSON.parse(raw));
+      const away = Math.min(86400, (Date.now() - S.last)/1000);
+      if (away > 30) {
+        S.buffs = [];
+        derive();
+        const v = D.eps * away * 0.5;
+        if (v > 0) { gain(v); setTimeout(() => toast(`おかえりなさい（${fmtTime(away)}ぶり）`, 'gold', `留守中に ${fmt(v)} e⁻ を生産しました`), 300); }
+      }
+    } catch (e) { S = defaults(); }
+  }
+  if (S.clicksAll >= 5) $('#clickHint').style.display = 'none';
+  buildShop();
+  layoutBoard();
+  derive();
+  showTab(S.tab || 'up');
+  nextNews();
+  new ResizeObserver(layoutBoard).observe(wrap);
+  if (document.fonts) document.fonts.ready.then(() => { boardDirty = true; });
+  requestAnimationFrame(frame);
+
+  let lastT = Date.now();
+  setInterval(() => {
+    const now = Date.now(), dt = Math.min(3600, (now - lastT)/1000); lastT = now;
+    S.buffs = S.buffs.filter(b => b.until > now);
+    derive();
+    gain(D.eps * dt);
+    if (D.draw > 0 && D.eff < 0.5) S.smoked = true;
+    if (D.eps > S.maxEps) S.maxEps = D.eps;
+    junkTick(now);
+    updateUI();
+  }, 100);
+  setInterval(checkAch, 1000);
+  setInterval(save, 15000);
+  setInterval(nextNews, 9000);
+  addEventListener('beforeunload', save);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+}
+boot();
+</script>
+</body>
+</html>
