@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Today SVG</title>
+<!--
+  開いた時点の「月日・曜日」（年は表示しない。日曜・祝日=赤・土曜=青、祝日名も表示）を SVG で描画する単一HTML。
+  祝日は holidays-jp API から取得し、失敗時は calcHolidays() で計算。
+  クエリ:
+    ?date=2026-11-03 表示する日付を指定（確認用）
+    ?lang=en        英語表記（既定 ja）
+    ?tz=Asia/Tokyo  タイムゾーン（既定 ブラウザのローカル）
+    ?theme=dark     ダーク配色（既定 light）
+    ?raw            SVG 単体（blob: URL）へ遷移して、SVG だけを表示
+  ※ 静的HTMLなので HTTP の Content-Type は text/html のまま。
+     image/svg+xml で返す必要がある用途（<img src> 埋め込み等）はサーバ側生成が必要。
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #f4f1ea; }
+  body { display: grid; place-items: center; }
+  svg { width: min(90vw, 90vh * 1.25); height: auto; display: block; }
+  .bar { position: fixed; bottom: 12px; right: 16px; font: 13px system-ui, sans-serif; }
+  .bar a { color: #666; margin-left: 12px; }
+</style>
+</head>
+<body>
+<div id="out"></div>
+<div class="bar"><a id="dl" download>SVGを保存</a><a id="raw" href="?raw">SVGのみ表示</a></div>
+<script>
+const q = new URLSearchParams(location.search);
+const lang = q.get('lang') === 'en' ? 'en' : 'ja';
+const tz = q.get('tz') || undefined;
+const dark = q.get('theme') === 'dark';
+
+function parts(d) {
+  const f = new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'numeric', day: 'numeric', weekday: 'short', year: 'numeric' });
+  const o = Object.fromEntries(f.formatToParts(d).map(p => [p.type, p.value]));
+  const wd = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(o.weekday);
+  return { y: +o.year, m: +o.month, d: +o.day, wd };
+}
+
+// ?date=YYYY-MM-DD 指定時はその日（確認用）
+function fromParam(s) {
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s || '');
+  if (!m) return null;
+  const y = +m[1], mo = +m[2], d = +m[3];
+  return { y, m: mo, d, wd: new Date(Date.UTC(y, mo - 1, d)).getUTCDay() };
+}
+
+const key = t => `${t.y}-${String(t.m).padStart(2, '0')}-${String(t.d).padStart(2, '0')}`;
+
+// 祝日計算（API 取得失敗時のフォールバック。現行の祝日法ベース、春分・秋分は 1980–2099 の近似式）
+function calcHolidays(y) {
+  const h = {};
+  const k = (m, d) => key({ y, m, d });
+  const nthMon = (m, n) => 1 + ((8 - new Date(Date.UTC(y, m - 1, 1)).getUTCDay()) % 7) + (n - 1) * 7;
+  const eq = c => Math.floor(c + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4));
+  [[1, 1, '元日'], [1, nthMon(1, 2), '成人の日'], [2, 11, '建国記念の日'], [2, 23, '天皇誕生日'],
+   [3, eq(20.8431), '春分の日'], [4, 29, '昭和の日'], [5, 3, '憲法記念日'], [5, 4, 'みどりの日'],
+   [5, 5, 'こどもの日'], [7, nthMon(7, 3), '海の日'], [8, 11, '山の日'], [9, nthMon(9, 3), '敬老の日'],
+   [9, eq(23.2488), '秋分の日'], [10, nthMon(10, 2), 'スポーツの日'], [11, 3, '文化の日'], [11, 23, '勤労感謝の日'],
+  ].forEach(([m, d, n]) => { h[k(m, d)] = n; });
+  const day = i => { const t = new Date(Date.UTC(y, 0, 1 + i)); return { k: key({ y: t.getUTCFullYear(), m: t.getUTCMonth() + 1, d: t.getUTCDate() }), wd: t.getUTCDay() }; };
+  const base = { ...h };
+  // 国民の休日: 前後が祝日に挟まれた平日
+  for (let i = 1; i < 365; i++) {
+    const c = day(i);
+    if (!base[c.k] && c.wd !== 0 && base[day(i - 1).k] && base[day(i + 1).k]) h[c.k] = '国民の休日';
+  }
+  // 振替休日: 日曜の祝日の後、最初の祝日でない日
+  for (let i = 0; i < 366; i++) {
+    const c = day(i);
+    if (c.wd === 0 && base[c.k]) {
+      let j = i + 1;
+      while (h[day(j).k]) j++;
+      h[day(j).k] = '振替休日';
+    }
+  }
+  return h;
+}
+
+// holidays-jp（内閣府データ準拠・CORS可）。その年が収録されていなければ計算にフォールバック
+async function holidayName(t) {
+  try {
+    const ctl = new AbortController();
+    setTimeout(() => ctl.abort(), 3000);
+    const res = await fetch('https://holidays-jp.github.io/api/v1/date.json', { signal: ctl.signal });
+    const data = await res.json();
+    if (Object.keys(data).some(d => d.startsWith(`${t.y}-`))) return data[key(t)] || null;
+  } catch (e) {}
+  return calcHolidays(t.y)[key(t)] || null;
+}
+
+function buildSVG(t) {
+  const W = 500, H = 400;
+  const bg = dark ? '#1d1d1f' : '#fffdf8';
+  const fg = dark ? '#f2f2f2' : '#222';
+  const red = t.holiday || t.wd === 0;
+  const wdColor = red ? '#d64545' : t.wd === 6 ? '#3a6fd8' : fg;
+  const head = red ? '#d64545' : t.wd === 6 ? '#3a6fd8' : (dark ? '#3a3a3c' : '#4a4a4a');
+  const dy = t.holiday ? -14 : 0;
+  const wdJa = ['日','月','火','水','木','金','土'][t.wd];
+  const wdEn = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'][t.wd];
+  const monEn = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'][t.m - 1];
+  const font = "'Hiragino Sans','Noto Sans JP','Helvetica Neue',Arial,sans-serif";
+  const headText = lang === 'ja' ? `${t.m}月` : monEn;
+  const wdText = lang === 'ja' ? `${wdJa}曜日` : wdEn;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${headText} ${t.d}日 ${wdText}${t.holiday ? ' ' + t.holiday : ''}">
+  <rect x="10" y="10" width="${W - 20}" height="${H - 20}" rx="28" fill="${bg}" stroke="${dark ? '#333' : '#e2ddd2'}" stroke-width="2"/>
+  <path d="M10 38 a28 28 0 0 1 28 -28 h${W - 76} a28 28 0 0 1 28 28 v62 h-${W - 20} z" fill="${head}"/>
+  <text x="${W / 2}" y="70" text-anchor="middle" font-family="${font}" font-size="34" font-weight="700" fill="#fff" letter-spacing="2">${headText}</text>
+  <text x="${W / 2}" y="${270 + dy}" text-anchor="middle" font-family="${font}" font-size="170" font-weight="800" fill="${wdColor}">${t.d}</text>
+  <text x="${W / 2}" y="${340 + dy}" text-anchor="middle" font-family="${font}" font-size="40" font-weight="600" fill="${wdColor}" letter-spacing="${lang === 'ja' ? 6 : 4}">${wdText}</text>${t.holiday ? `
+  <text x="${W / 2}" y="368" text-anchor="middle" font-family="${font}" font-size="24" font-weight="600" fill="${wdColor}" letter-spacing="2">${t.holiday}</text>` : ''}
+</svg>`;
+}
+
+(async () => {
+const t = fromParam(q.get('date')) || parts(new Date());
+t.holiday = await holidayName(t);
+const svg = buildSVG(t);
+const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+
+if (q.has('raw')) {
+  location.replace(url);
+} else {
+  if (dark) document.body.style.background = '#111';
+  document.getElementById('out').innerHTML = svg;
+  const dl = document.getElementById('dl');
+  dl.href = url;
+  dl.download = `today-${t.y}-${String(t.m).padStart(2, '0')}-${String(t.d).padStart(2, '0')}.svg`;
+  // 日付が変わったら再描画
+  const now = new Date(), next = new Date(now); next.setHours(24, 0, 1, 0);
+  if (!q.has('date')) setTimeout(() => location.reload(), next - now);
+}
+})();
+</script>
+</body>
+</html>
