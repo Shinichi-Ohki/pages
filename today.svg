@@ -1,33 +1,19 @@
-<!doctype html>
-<html lang="ja">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Today SVG</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 400" width="500" height="400" role="img" aria-label="今日の日付">
 <!--
-  開いた時点の「月日・曜日」（年は表示しない。日曜・祝日=赤・土曜=青、祝日名も表示）を SVG で描画する単一HTML。
-  祝日は holidays-jp API から取得し、失敗時は calcHolidays() で計算。
-  クエリ:
-    ?date=2026-11-03 表示する日付を指定（確認用）
-    ?lang=en        英語表記（既定 ja）
-    ?tz=Asia/Tokyo  タイムゾーン（既定 ブラウザのローカル）
-    ?theme=dark     ダーク配色（既定 light）
-    ?raw            SVG 単体（blob: URL）へ遷移して、SVG だけを表示
-  ※ 静的HTMLなので HTTP の Content-Type は text/html のまま。
-     image/svg+xml で返す必要がある用途（<img src> 埋め込み等）はサーバ側生成が必要。
+  today_svg.html の SVG 単体版。URL を直接開く / <object> / <iframe> で埋め込むと、開いた日の月日・曜日・祝日を描画する。
+  ※ <img src> や README 埋め込みではスクリプトが動かないため、下の初期表示（ハイフン2つのプレースホルダ）のままになる。XMLコメント内にハイフン連続は書けないので注意。
+  クエリ: ?date=2026-11-03 / ?lang=en / ?tz=Asia/Tokyo / ?theme=dark（today_svg.html と同じ）
+  祝日は holidays-jp API から取得し、失敗時は calcHolidays() で計算（today_svg.html と同じ処理。直すときは両方直す）。
 -->
-<style>
-  html, body { margin: 0; height: 100%; background: #f4f1ea; }
-  body { display: grid; place-items: center; }
-  svg { width: min(90vw, 90vh * 1.25); height: auto; display: block; }
-  .bar { position: fixed; bottom: 12px; right: 16px; font: 13px system-ui, sans-serif; }
-  .bar a { color: #666; margin-left: 12px; }
-</style>
-</head>
-<body>
-<div id="out"></div>
-<div class="bar"><a id="dl" download>SVGを保存</a><a id="raw" href="?raw">SVGのみ表示</a></div>
-<script>
+  <rect id="bg" x="10" y="10" width="480" height="380" rx="28" fill="#fffdf8" stroke="#e2ddd2" stroke-width="2"/>
+  <path id="head" d="M10 38 a28 28 0 0 1 28 -28 h424 a28 28 0 0 1 28 28 v62 h-480 z" fill="#4a4a4a"/>
+  <g font-family="'Hiragino Sans','Noto Sans JP','Helvetica Neue',Arial,sans-serif" text-anchor="middle">
+    <text id="month" x="250" y="70" font-size="34" font-weight="700" fill="#fff" letter-spacing="2">--</text>
+    <text id="day" x="250" y="270" font-size="170" font-weight="800" fill="#222">--</text>
+    <text id="wd" x="250" y="340" font-size="40" font-weight="600" fill="#222" letter-spacing="6"></text>
+    <text id="hol" x="250" y="368" font-size="24" font-weight="600" fill="#222" letter-spacing="2"></text>
+  </g>
+<script><![CDATA[
 const q = new URLSearchParams(location.search);
 const lang = q.get('lang') === 'en' ? 'en' : 'ja';
 const tz = q.get('tz') || undefined;
@@ -92,9 +78,8 @@ async function holidayName(t) {
   return calcHolidays(t.y)[key(t)] || null;
 }
 
-function buildSVG(t) {
-  const W = 500, H = 400;
-  const bg = dark ? '#1d1d1f' : '#fffdf8';
+function render(t) {
+  const $ = id => document.getElementById(id);
   const fg = dark ? '#f2f2f2' : '#222';
   const red = t.holiday || t.wd === 0;
   const wdColor = red ? '#d64545' : t.wd === 6 ? '#3a6fd8' : fg;
@@ -103,38 +88,29 @@ function buildSVG(t) {
   const wdJa = ['日','月','火','水','木','金','土'][t.wd];
   const wdEn = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'][t.wd];
   const monEn = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'][t.m - 1];
-  const font = "'Hiragino Sans','Noto Sans JP','Helvetica Neue',Arial,sans-serif";
   const headText = lang === 'ja' ? `${t.m}月` : monEn;
   const wdText = lang === 'ja' ? `${wdJa}曜日` : wdEn;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${headText} ${t.d}日 ${wdText}${t.holiday ? ' ' + t.holiday : ''}">
-  <rect x="10" y="10" width="${W - 20}" height="${H - 20}" rx="28" fill="${bg}" stroke="${dark ? '#333' : '#e2ddd2'}" stroke-width="2"/>
-  <path d="M10 38 a28 28 0 0 1 28 -28 h${W - 76} a28 28 0 0 1 28 28 v62 h-${W - 20} z" fill="${head}"/>
-  <text x="${W / 2}" y="70" text-anchor="middle" font-family="${font}" font-size="34" font-weight="700" fill="#fff" letter-spacing="2">${headText}</text>
-  <text x="${W / 2}" y="${270 + dy}" text-anchor="middle" font-family="${font}" font-size="170" font-weight="800" fill="${wdColor}">${t.d}</text>
-  <text x="${W / 2}" y="${340 + dy}" text-anchor="middle" font-family="${font}" font-size="40" font-weight="600" fill="${wdColor}" letter-spacing="${lang === 'ja' ? 6 : 4}">${wdText}</text>${t.holiday ? `
-  <text x="${W / 2}" y="368" text-anchor="middle" font-family="${font}" font-size="24" font-weight="600" fill="${wdColor}" letter-spacing="2">${t.holiday}</text>` : ''}
-</svg>`;
+  $('bg').setAttribute('fill', dark ? '#1d1d1f' : '#fffdf8');
+  $('bg').setAttribute('stroke', dark ? '#333' : '#e2ddd2');
+  $('head').setAttribute('fill', head);
+  $('month').textContent = headText;
+  $('day').textContent = t.d;
+  $('day').setAttribute('y', 270 + dy);
+  $('wd').textContent = wdText;
+  $('wd').setAttribute('y', 340 + dy);
+  $('wd').setAttribute('letter-spacing', lang === 'ja' ? 6 : 4);
+  $('hol').textContent = t.holiday || '';
+  [$('day'), $('wd'), $('hol')].forEach(e => e.setAttribute('fill', wdColor));
+  document.documentElement.setAttribute('aria-label', `${headText} ${t.d}日 ${wdText}${t.holiday ? ' ' + t.holiday : ''}`);
 }
 
 (async () => {
-const t = fromParam(q.get('date')) || parts(new Date());
-t.holiday = await holidayName(t);
-const svg = buildSVG(t);
-const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-
-if (q.has('raw')) {
-  location.replace(url);
-} else {
-  if (dark) document.body.style.background = '#111';
-  document.getElementById('out').innerHTML = svg;
-  const dl = document.getElementById('dl');
-  dl.href = url;
-  dl.download = `today-${t.y}-${String(t.m).padStart(2, '0')}-${String(t.d).padStart(2, '0')}.svg`;
+  const t = fromParam(q.get('date')) || parts(new Date());
+  t.holiday = await holidayName(t);
+  render(t);
   // 日付が変わったら再描画
   const now = new Date(), next = new Date(now); next.setHours(24, 0, 1, 0);
   if (!q.has('date')) setTimeout(() => location.reload(), next - now);
-}
 })();
-</script>
-</body>
-</html>
+]]></script>
+</svg>
