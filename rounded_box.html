@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rounded Box STEP</title>
+<style>
+:root {
+  --bg: #f4f3ef; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a64; --line: #dddbd3;
+  --accent: #c2410c; --accent-ink: #ffffff; --warn-bg: #fff4e0; --warn-ink: #8a4b00;
+  --view: #e9e8e2; --model: #d7a35c; --edge: #3a3227;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161614; --panel: #201f1c; --ink: #ecebe6; --muted: #9b9990; --line: #34322d;
+    --accent: #f08a4b; --accent-ink: #1a0f08; --warn-bg: #3a2a12; --warn-ink: #f5c27a;
+    --view: #12110f; --model: #c8934c; --edge: #f1dfc2;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161614; --panel: #201f1c; --ink: #ecebe6; --muted: #9b9990; --line: #34322d;
+  --accent: #f08a4b; --accent-ink: #1a0f08; --warn-bg: #3a2a12; --warn-ink: #f5c27a;
+  --view: #12110f; --model: #c8934c; --edge: #f1dfc2;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  display: grid; grid-template-columns: 320px 1fr; min-height: 100vh;
+}
+aside {
+  background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px; display: flex; flex-direction: column; gap: 16px;
+}
+h1 { font-size: 17px; margin: 0; letter-spacing: .02em; }
+.sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.field { display: grid; grid-template-columns: 28px 1fr 34px; align-items: center; gap: 8px; }
+.field label { font-weight: 700; font-family: ui-monospace, Menlo, monospace; font-size: 15px; }
+.field .hint { grid-column: 2 / 4; color: var(--muted); font-size: 11.5px; margin-top: -6px; }
+.field .unit { color: var(--muted); font-size: 12px; }
+input[type=number] {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: var(--ink); font: 15px ui-monospace, Menlo, monospace;
+}
+input[type=number]:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+input.bad { outline: 2px solid #d33; outline-offset: -1px; }
+.fields { display: flex; flex-direction: column; gap: 12px; }
+.rrow { display: flex; gap: 6px; grid-column: 2 / 4; }
+.rrow button {
+  flex: 1; padding: 4px 0; font-size: 12px; border-radius: 5px; cursor: pointer;
+  border: 1px solid var(--line); background: transparent; color: var(--muted);
+}
+.rrow button:hover { color: var(--ink); border-color: var(--muted); }
+.msg { border-radius: 6px; padding: 8px 10px; font-size: 12.5px; background: var(--warn-bg); color: var(--warn-ink); }
+.msg:empty { display: none; }
+.info { font-size: 12.5px; color: var(--muted); display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
+.info b { color: var(--ink); font-weight: 600; font-family: ui-monospace, Menlo, monospace; word-break: break-all; }
+#dl {
+  padding: 11px; border: 0; border-radius: 7px; background: var(--accent); color: var(--accent-ink);
+  font-weight: 700; font-size: 14px; cursor: pointer;
+}
+#dl:disabled { opacity: .4; cursor: not-allowed; }
+.foot { margin-top: auto; color: var(--muted); font-size: 11px; }
+main { position: relative; background: var(--view); min-height: 320px; overflow: hidden; }
+#view { position: absolute; inset: 0; }
+#view canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.badge {
+  position: absolute; left: 12px; bottom: 10px; font-size: 11.5px; color: var(--muted);
+  pointer-events: none;
+}
+#theme {
+  position: absolute; right: 12px; top: 12px; border: 1px solid var(--line); background: var(--panel);
+  color: var(--ink); border-radius: 6px; padding: 4px 9px; cursor: pointer; font-size: 12px;
+}
+@media (max-width: 760px) {
+  body { grid-template-columns: 1fr; grid-template-rows: auto 60vh; }
+  aside { border-right: 0; border-bottom: 1px solid var(--line); padding: 16px; }
+}
+</style>
+</head>
+<body>
+<aside>
+  <div>
+    <h1>角丸直方体 STEP</h1>
+    <div class="sub">原点: XY 中心 / Z=0 が底面・+Z 方向（KiCad 3D モデル用）</div>
+  </div>
+
+  <div class="fields">
+    <div class="field">
+      <label for="W">W</label><input id="W" type="number" step="0.1" min="0" value="9.8"><span class="unit">mm</span>
+      <div class="hint">幅 X</div>
+    </div>
+    <div class="field">
+      <label for="H">H</label><input id="H" type="number" step="0.1" min="0" value="10"><span class="unit">mm</span>
+      <div class="hint">奥行き Y</div>
+    </div>
+    <div class="field">
+      <label for="D">D</label><input id="D" type="number" step="0.1" min="0" value="6"><span class="unit">mm</span>
+      <div class="hint">高さ Z</div>
+    </div>
+    <div class="field">
+      <label for="R">R</label><input id="R" type="number" step="0.1" min="0" value="3"><span class="unit">mm</span>
+      <div class="hint">角丸半径。min(W,H)/2 でカプセル型、超過はクランプ</div>
+      <div class="rrow">
+        <button type="button" data-r="0">0（角）</button>
+        <button type="button" data-r="max">最大（カプセル）</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="msg" class="msg"></div>
+
+  <div class="info">
+    <span>形状</span><b id="kind">-</b>
+    <span>実 R</span><b id="rEff">-</b>
+    <span>体積</span><b id="vol">-</b>
+    <span>ファイル</span><b id="fname">-</b>
+  </div>
+
+  <button id="dl" type="button">STEP をダウンロード</button>
+
+  <div class="foot">Enter でもダウンロード。STEP・プレビューともブラウザ内で生成（外部ライブラリ不使用・オフライン可）。</div>
+</aside>
+
+<main>
+  <div id="view"></div>
+  <button id="theme" type="button" title="テーマ切替">◐</button>
+  <div class="badge">ドラッグ: 回転 / 右ドラッグ: 移動 / ホイール: ズーム / ダブルクリック: 視点リセット</div>
+</main>
+
+<!-- STEP 生成 -->
+<script id="stepgen">
+"use strict";
+const EPS = 1e-9;
+
+/** Python の f"{x:g}" 相当（有効6桁、末尾ゼロ除去） */
+function fmtG(x) {
+  return String(Number(x.toPrecision(6)));
+}
+
+/** STEP の REAL 表記（必ず小数点を含める） */
+function fmtR(x) {
+  if (Math.abs(x) < 1e-12) return "0.";
+  let s = String(Number(x.toPrecision(15)));
+  if (s.includes("e")) {
+    let [m, e] = s.split("e");
+    if (!m.includes(".")) m += ".";
+    const n = parseInt(e, 10);
+    return m + "E" + (n < 0 ? "-" : "+") + String(Math.abs(n)).padStart(2, "0");
+  }
+  if (!s.includes(".")) s += ".";
+  return s;
+}
+
+/**
+ * 入力を検証し、R のクランプと形状種別を決める。
+ * rounded_box.py と同じ判定: R > min(W,H)/2 → クランプ、R == min(W,H)/2 → カプセル / 円柱。
+ */
+function resolveParams(w, h, d, r) {
+  const errors = [];
+  if (!(w > 0)) errors.push("W は正の数にしてください");
+  if (!(h > 0)) errors.push("H は正の数にしてください");
+  if (!(d > 0)) errors.push("D は正の数にしてください");
+  if (!(r >= 0)) errors.push("R は 0 以上にしてください");
+  if (errors.length) return { errors };
+  const rMax = Math.min(w, h) / 2;
+  let warn = "";
+  if (r > rMax + EPS) {
+    warn = `R=${fmtG(r)} は min(W,H)/2=${fmtG(rMax)} を超えるためクランプしました`;
+    r = rMax;
+  } else if (Math.abs(r - rMax) <= EPS) {
+    r = rMax;
+  }
+  let kind;
+  if (r === rMax) kind = Math.abs(w - h) <= EPS ? "円柱" : "カプセル型";
+  else if (r <= EPS) { r = 0; kind = "直方体"; }
+  else kind = "角丸直方体";
+  return { errors, w, h, d, r, rMax, warn, kind };
+}
+
+/**
+ * XY 平面の閉じた輪郭（反時計回り）をセグメント列で返す。
+ * line: {type:'line', a:[x,y], b:[x,y]}
+ * arc:  {type:'arc', a, b, c:[cx,cy]}（反時計回り、半径 r）
+ * 長さ 0 の直線は除くので、カプセル型・円柱も同じ経路で作れる。
+ */
+function profile(w, h, r) {
+  const hw = w / 2, hh = h / 2;
+  const segs = [];
+  const L = (a, b) => { if (Math.hypot(b[0] - a[0], b[1] - a[1]) > EPS) segs.push({ type: "line", a, b }); };
+  const A = (a, b, c) => { if (r > 0) segs.push({ type: "arc", a, b, c }); };
+  L([-hw + r, -hh], [hw - r, -hh]);
+  A([hw - r, -hh], [hw, -hh + r], [hw - r, -hh + r]);
+  L([hw, -hh + r], [hw, hh - r]);
+  A([hw, hh - r], [hw - r, hh], [hw - r, hh - r]);
+  L([hw - r, hh], [-hw + r, hh]);
+  A([-hw + r, hh], [-hw, hh - r], [-hw + r, hh - r]);
+  L([-hw, hh - r], [-hw, -hh + r]);
+  A([-hw, -hh + r], [-hw + r, -hh], [-hw + r, -hh + r]);
+  return segs;
+}
+
+function fileName(p) {
+  return `RoundedBox_${fmtG(p.w)}x${fmtG(p.h)}x${fmtG(p.d)}_R${fmtG(p.r)}.step`;
+}
+
+function volume(p) {
+  return (p.w * p.h - (4 - Math.PI) * p.r * p.r) * p.d;
+}
+
+/** 押し出し形状を STEP AP214 の MANIFOLD_SOLID_BREP として書き出す */
+function buildStep(p, name) {
+  const segs = profile(p.w, p.h, p.r);
+  const n = segs.length;
+  const lines = [];
+  let id = 0;
+  const add = (s) => { id += 1; lines.push(`#${id}=${s};`); return `#${id}`; };
+  const pt = (x, y, z) => add(`CARTESIAN_POINT('',(${fmtR(x)},${fmtR(y)},${fmtR(z)}))`);
+  const dir = (x, y, z) => add(`DIRECTION('',(${fmtR(x)},${fmtR(y)},${fmtR(z)}))`);
+  const ax2 = (o, z, x) => add(`AXIS2_PLACEMENT_3D('',${pt(...o)},${dir(...z)},${dir(...x)})`);
+  const lineCurve = (a, b) => {
+    const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
+    const len = Math.hypot(dx, dy, dz);
+    return add(`LINE('',${pt(...a)},${add(`VECTOR('',${dir(dx / len, dy / len, dz / len)},${fmtR(len)})`)})`);
+  };
+  const circleCurve = (c, z, start) => {
+    const ux = start[0] - c[0], uy = start[1] - c[1];
+    const ul = Math.hypot(ux, uy);
+    return add(`CIRCLE('',${ax2([c[0], c[1], z], [0, 0, 1], [ux / ul, uy / ul, 0])},${fmtR(p.r)})`);
+  };
+  const edge = (v1, v2, curve) => add(`EDGE_CURVE('',${v1},${v2},${curve},.T.)`);
+  const oe = (e, sense) => add(`ORIENTED_EDGE('',*,*,${e},${sense ? ".T." : ".F."})`);
+  const face = (edgesWithSense, surface) => {
+    const loop = add(`EDGE_LOOP('',(${edgesWithSense.map(([e, s]) => oe(e, s)).join(",")}))`);
+    const bound = add(`FACE_OUTER_BOUND('',${loop},.T.)`);
+    return add(`ADVANCED_FACE('',(${bound}),${surface},.T.)`);
+  };
+
+  // 頂点（seg i の始点 = 頂点 i）
+  const vb = [], vt = [];
+  for (let i = 0; i < n; i++) {
+    const [x, y] = segs[i].a;
+    vb.push(add(`VERTEX_POINT('',${pt(x, y, 0)})`));
+    vt.push(add(`VERTEX_POINT('',${pt(x, y, p.d)})`));
+  }
+  // 稜線: 底 EB_i / 上 ET_i（頂点 i → i+1）、縦 EV_i（底 → 上）
+  const eb = [], et = [], ev = [];
+  for (let i = 0; i < n; i++) {
+    const s = segs[i], j = (i + 1) % n;
+    for (const [z, vs, arr] of [[0, vb, eb], [p.d, vt, et]]) {
+      const curve = s.type === "line"
+        ? lineCurve([s.a[0], s.a[1], z], [s.b[0], s.b[1], z])
+        : circleCurve(s.c, z, s.a);
+      arr.push(edge(vs[i], vs[j], curve));
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    const [x, y] = segs[i].a;
+    ev.push(edge(vb[i], vt[i], lineCurve([x, y, 0], [x, y, p.d])));
+  }
+
+  const faces = [];
+  // 底面（外向き法線 -Z → ループは逆順・逆向き）
+  faces.push(face(
+    eb.map((e) => [e, false]).reverse(),
+    add(`PLANE('',${ax2([0, 0, 0], [0, 0, -1], [1, 0, 0])})`),
+  ));
+  // 上面（+Z）
+  faces.push(face(et.map((e) => [e, true]), add(`PLANE('',${ax2([0, 0, p.d], [0, 0, 1], [1, 0, 0])})`)));
+  // 側面
+  for (let i = 0; i < n; i++) {
+    const s = segs[i], j = (i + 1) % n;
+    let surf;
+    if (s.type === "line") {
+      const dx = s.b[0] - s.a[0], dy = s.b[1] - s.a[1], l = Math.hypot(dx, dy);
+      const tx = dx / l, ty = dy / l;
+      surf = add(`PLANE('',${ax2([s.a[0], s.a[1], 0], [ty, -tx, 0], [tx, ty, 0])})`);
+    } else {
+      surf = add(`CYLINDRICAL_SURFACE('',${ax2([s.c[0], s.c[1], 0], [0, 0, 1], [1, 0, 0])},${fmtR(p.r)})`);
+    }
+    faces.push(face([[eb[i], true], [ev[j], true], [et[i], false], [ev[i], false]], surf));
+  }
+  const shell = add(`CLOSED_SHELL('',(${faces.join(",")}))`);
+  const solid = add(`MANIFOLD_SOLID_BREP('${name}',${shell})`);
+
+  // 単位・製品情報
+  const mm = add(`( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) )`);
+  const rad = add(`( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.) )`);
+  const sr = add(`( NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT() )`);
+  const unc = add(`UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-07),${mm},'distance_accuracy_value','confusion accuracy')`);
+  const ctx = add(`( GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((${unc})) GLOBAL_UNIT_ASSIGNED_CONTEXT((${mm},${rad},${sr})) REPRESENTATION_CONTEXT('Context #1','3D Context with UNIT and UNCERTAINTY') )`);
+  const origin = ax2([0, 0, 0], [0, 0, 1], [1, 0, 0]);
+  const rep = add(`ADVANCED_BREP_SHAPE_REPRESENTATION('',(${origin},${solid}),${ctx})`);
+  const appCtx = add(`APPLICATION_CONTEXT('core data for automotive mechanical design processes')`);
+  add(`APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000,${appCtx})`);
+  const prodCtx = add(`PRODUCT_CONTEXT('',${appCtx},'mechanical')`);
+  const prod = add(`PRODUCT('${name}','${name}','',(${prodCtx}))`);
+  add(`PRODUCT_RELATED_PRODUCT_CATEGORY('part',$,(${prod}))`);
+  const pdf = add(`PRODUCT_DEFINITION_FORMATION('','',${prod})`);
+  const pdc = add(`PRODUCT_DEFINITION_CONTEXT('part definition',${appCtx},'design')`);
+  const pd = add(`PRODUCT_DEFINITION('design','',${pdf},${pdc})`);
+  const pds = add(`PRODUCT_DEFINITION_SHAPE('','',${pd})`);
+  add(`SHAPE_DEFINITION_REPRESENTATION(${pds},${rep})`);
+
+  const ts = new Date().toISOString().slice(0, 19);
+  return [
+    "ISO-10303-21;",
+    "HEADER;",
+    "FILE_DESCRIPTION(('Open CASCADE Model'),'2;1');",
+    `FILE_NAME('${name}.step','${ts}',(''),(''),'rounded_box.html','rounded_box.html','');`,
+    "FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));",
+    "ENDSEC;",
+    "DATA;",
+    ...lines,
+    "ENDSEC;",
+    "END-ISO-10303-21;",
+    "",
+  ].join("\n");
+}
+
+if (typeof module !== "undefined") module.exports = { resolveParams, profile, buildStep, fileName, volume, fmtR, fmtG };
+</script>
+
+<!-- UI -->
+<script>
+"use strict";
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const inputs = ["W", "H", "D", "R"].map($);
+  const STORE = "rounded_box_web.v1";
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE) || "null");
+    if (saved) inputs.forEach((el) => { if (saved[el.id] != null) el.value = saved[el.id]; });
+  } catch (_) { /* 保存なしで続行 */ }
+
+  let current = null;
+
+  function update() {
+    const [w, h, d, r] = inputs.map((el) => (el.value.trim() === "" ? NaN : Number(el.value)));
+    const p = resolveParams(w, h, d, r);
+    inputs.forEach((el) => el.classList.remove("bad"));
+    if (p.errors.length) {
+      [[w, 0], [h, 1], [d, 2]].forEach(([v, i]) => { if (!(v > 0)) inputs[i].classList.add("bad"); });
+      if (!(r >= 0)) inputs[3].classList.add("bad");
+      $("msg").textContent = p.errors.join(" / ");
+      $("dl").disabled = true;
+      ["kind", "rEff", "vol", "fname"].forEach((k) => ($(k).textContent = "-"));
+      current = null;
+      return;
+    }
+    current = p;
+    $("msg").textContent = p.warn;
+    $("dl").disabled = false;
+    $("kind").textContent = p.kind;
+    $("rEff").textContent = `${fmtG(p.r)} mm（最大 ${fmtG(p.rMax)}）`;
+    $("vol").textContent = `${fmtG(volume(p))} mm³`;
+    $("fname").textContent = fileName(p);
+    try { localStorage.setItem(STORE, JSON.stringify(Object.fromEntries(inputs.map((el) => [el.id, el.value])))); } catch (_) {}
+    window.dispatchEvent(new CustomEvent("boxchange", { detail: p }));
+  }
+
+  function download() {
+    if (!current) return;
+    const fname = fileName(current);
+    const text = buildStep(current, fname.replace(/\.step$/, ""));
+    const url = URL.createObjectURL(new Blob([text], { type: "application/step" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  inputs.forEach((el) => {
+    el.addEventListener("input", update);
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter") download(); });
+  });
+  document.querySelectorAll("[data-r]").forEach((b) => b.addEventListener("click", () => {
+    const w = Number($("W").value), h = Number($("H").value);
+    $("R").value = b.dataset.r === "max" ? fmtG(Math.min(w, h) / 2) : "0";
+    update();
+  }));
+  $("dl").addEventListener("click", download);
+
+  $("theme").addEventListener("click", () => {
+    const root = document.documentElement;
+    const dark = root.dataset.theme
+      ? root.dataset.theme === "dark"
+      : matchMedia("(prefers-color-scheme: dark)").matches;
+    root.dataset.theme = dark ? "light" : "dark";
+    window.dispatchEvent(new Event("themechange"));
+  });
+
+  window.__boxCurrent = () => current;
+  update();
+})();
+</script>
+
+<!-- 3D プレビュー（Canvas 2D・外部ライブラリ不使用。凸形状なので背面カリングだけで隠れ面処理できる） -->
+<script>
+"use strict";
+(() => {
+  const host = document.getElementById("view");
+  const cv = document.createElement("canvas");
+  host.appendChild(cv);
+  const ctx = cv.getContext("2d");
+  const INIT_AZ = Math.atan2(-0.95, 0.75), INIT_EL = Math.atan2(0.7, Math.hypot(0.75, 0.95));
+  let az = INIT_AZ, el = INIT_EL, zoom = 1, panX = 0, panY = 0;
+  let model = null, viewSize = 0;
+
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const rgb = (hex) => {
+    let m = hex.replace("#", "");
+    if (m.length === 3) m = m.split("").map((c) => c + c).join("");
+    const v = parseInt(m, 16);
+    return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+  };
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+
+  function setModel(p) {
+    const segs = profile(p.w, p.h, p.r);
+    const pts = [], feat = new Set();
+    for (const s of segs) {
+      feat.add(pts.length);
+      pts.push(s.a);
+      if (s.type === "arc") {
+        const a0 = Math.atan2(s.a[1] - s.c[1], s.a[0] - s.c[0]);
+        let a1 = Math.atan2(s.b[1] - s.c[1], s.b[0] - s.c[0]);
+        if (a1 <= a0) a1 += Math.PI * 2;
+        const n = Math.max(8, Math.round(((a1 - a0) / (Math.PI / 2)) * 20));
+        for (let i = 1; i < n; i++) {
+          const t = a0 + ((a1 - a0) * i) / n;
+          pts.push([s.c[0] + p.r * Math.cos(t), s.c[1] + p.r * Math.sin(t)]);
+        }
+      }
+    }
+    model = { p, pts, feat };
+    // 大きさが大きく変わったときだけ表示倍率・位置を合わせ直す
+    const size = Math.max(p.w, p.h, p.d);
+    if (!viewSize || size / viewSize > 1.8 || size / viewSize < 0.55) {
+      viewSize = size; zoom = 1; panX = panY = 0;
+    }
+    draw();
+  }
+
+  function draw() {
+    // 表示サイズは CSS（100%）に任せ、ここでは描画解像度だけ決める（clientWidth の丸めでリサイズがループするのを防ぐ）
+    const rect = host.getBoundingClientRect();
+    const W = rect.width, H = rect.height, dpr = window.devicePixelRatio || 1;
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
+      cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = css("--view");
+    ctx.fillRect(0, 0, W, H);
+    if (!model) return;
+
+    const { p, pts, feat } = model;
+    const ce = Math.cos(el), se = Math.sin(el), ca = Math.cos(az), sa = Math.sin(az);
+    const cam = [ce * ca, ce * sa, se];          // 注視点 → カメラ方向
+    const rt = [-sa, ca, 0];                      // 画面右
+    const up = [-se * ca, -se * sa, ce];          // 画面上
+    const scale = (Math.min(W, H) / (viewSize * 2.6)) * zoom;
+    const zc = p.d / 2;
+    const P = (x, y, z) => [
+      W / 2 + panX + (x * rt[0] + y * rt[1]) * scale,
+      H / 2 + panY - (x * up[0] + y * up[1] + (z - zc) * up[2]) * scale,
+    ];
+    const poly = (arr) => {
+      ctx.beginPath();
+      arr.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+    };
+    const seg = (a, b) => { ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); };
+
+    // グリッド（Z=0）
+    const drawGrid = () => {
+      const step = Math.pow(10, Math.floor(Math.log10(viewSize)));
+      const span = Math.ceil((Math.max(p.w, p.h) * 1.6) / step) * step;
+      ctx.beginPath();
+      for (let k = -span / 2; k <= span / 2 + 1e-9; k += step / 2) {
+        seg(P(k, -span / 2, 0), P(k, span / 2, 0));
+        seg(P(-span / 2, k, 0), P(span / 2, k, 0));
+      }
+      ctx.strokeStyle = "rgba(136,136,136,0.35)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    };
+    if (se >= 0) drawGrid();
+
+    // 陰影
+    const L = [0, 0, 0];
+    for (let i = 0; i < 3; i++) L[i] = cam[i] * 0.55 + up[i] * 0.75 - rt[i] * 0.45;
+    const ll = Math.hypot(...L); L.forEach((v, i) => (L[i] = v / ll));
+    const base = rgb(css("--model"));
+    const shade = (nrm) => {
+      const k = 0.45 + 0.6 * Math.max(0, dot(nrm, L));
+      return `rgb(${base.map((c) => Math.min(255, Math.round(c * k))).join(",")})`;
+    };
+
+    const n = pts.length;
+    const vis = [];
+    ctx.lineJoin = "round";
+    for (let i = 0; i < n; i++) {
+      const a = pts[i], b = pts[(i + 1) % n];
+      const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy);
+      const nrm = [dy / l, -dx / l, 0];
+      vis[i] = dot(nrm, cam) > 1e-9;
+      if (!vis[i]) continue;
+      poly([P(a[0], a[1], 0), P(b[0], b[1], 0), P(b[0], b[1], p.d), P(a[0], a[1], p.d)]);
+      const col = shade(nrm);
+      ctx.fillStyle = col; ctx.strokeStyle = col; ctx.lineWidth = 0.8;
+      ctx.fill(); ctx.stroke();
+    }
+    const topVis = se > 1e-9, botVis = se < -1e-9;
+    if (topVis || botVis) {
+      const z = topVis ? p.d : 0;
+      poly(pts.map(([x, y]) => P(x, y, z)));
+      ctx.fillStyle = shade([0, 0, topVis ? 1 : -1]);
+      ctx.fill();
+    }
+
+    // 稜線: 上下の輪郭（隣接面が見えている部分）と、直線/円弧の境目・シルエットの縦線
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const a = pts[i], b = pts[(i + 1) % n];
+      if (vis[i] || topVis) seg(P(a[0], a[1], p.d), P(b[0], b[1], p.d));
+      if (vis[i] || botVis) seg(P(a[0], a[1], 0), P(b[0], b[1], 0));
+      const prev = vis[(i - 1 + n) % n];
+      if ((feat.has(i) && (prev || vis[i])) || prev !== vis[i]) seg(P(a[0], a[1], 0), P(a[0], a[1], p.d));
+    }
+    ctx.strokeStyle = css("--edge");
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    if (se < 0) drawGrid();
+
+    // 座標軸（常に手前）
+    const o = P(0, 0, 0), len = viewSize * 0.7;
+    [[[len, 0, 0], "#e5533d"], [[0, len, 0], "#3fae4a"], [[0, 0, len], "#3d7be5"]].forEach(([v, c]) => {
+      ctx.beginPath(); seg(o, P(...v)); ctx.strokeStyle = c; ctx.lineWidth = 1.5; ctx.stroke();
+    });
+  }
+
+  // 操作: 左ドラッグ=回転 / 右ドラッグ・Shift+ドラッグ=移動 / ホイール=ズーム / ダブルクリック=リセット
+  let drag = null;
+  cv.addEventListener("pointerdown", (e) => {
+    drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.button === 1 || e.shiftKey };
+    cv.setPointerCapture(e.pointerId);
+  });
+  cv.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    drag.x = e.clientX; drag.y = e.clientY;
+    if (drag.pan) { panX += dx; panY += dy; }
+    else {
+      az -= dx * 0.01;
+      el = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, el + dy * 0.01));
+    }
+    draw();
+  });
+  const end = () => { drag = null; };
+  cv.addEventListener("pointerup", end);
+  cv.addEventListener("pointercancel", end);
+  cv.addEventListener("contextmenu", (e) => e.preventDefault());
+  cv.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    zoom = Math.max(0.1, Math.min(20, zoom * Math.exp(-e.deltaY * 0.0015)));
+    draw();
+  }, { passive: false });
+  cv.addEventListener("dblclick", () => { az = INIT_AZ; el = INIT_EL; zoom = 1; panX = panY = 0; draw(); });
+  cv.style.touchAction = "none";
+
+  new ResizeObserver(draw).observe(host);
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+  window.addEventListener("themechange", draw);
+  window.addEventListener("boxchange", (e) => setModel(e.detail));
+  const cur = window.__boxCurrent();
+  if (cur) setModel(cur);
+})();
+</script>
+</body>
+</html>
