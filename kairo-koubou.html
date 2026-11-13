@@ -90,6 +90,8 @@ main{display:grid;grid-template-columns:minmax(380px,1.05fr) minmax(400px,1fr) m
 .card .rate{color:var(--muted)}
 .card .count{font-family:var(--mono);font-size:38px;color:var(--gold);min-width:44px;text-align:right}
 .badge{width:64px;height:64px;border-radius:6px;display:grid;place-items:center;font-family:var(--mono);font-size:15px;letter-spacing:.02em;border:1px solid}
+.badge > div{text-align:center;line-height:1.15}
+.badge small{display:block;font-size:17px;font-weight:bold}
 .b-click{background:#2a1a0c;color:#ffb46b;border-color:#6b3f17}
 .b-global{background:#0c1f2a;color:var(--cyan);border-color:#17526b}
 .b-psu{background:#2a0c0c;color:#ff8a80;border-color:#6b1717}
@@ -120,6 +122,11 @@ textarea{width:100%;height:120px;background:#0a110c;color:var(--text);border:1px
 .row{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0;align-items:center}
 .kv{display:grid;grid-template-columns:1fr auto;gap:6px 14px;font-size:19px}
 .kv span:nth-child(even){font-family:var(--mono);color:var(--gold);text-align:right}
+#upOwned{margin-top:6px;border-top:1px solid var(--border);padding-top:4px}
+#upOwned summary{cursor:pointer;list-style:revert}
+.owned{display:flex;flex-wrap:wrap;gap:2px 12px;align-items:baseline;padding:6px 4px;border-bottom:1px dashed var(--border)}
+.owned b{color:var(--gold);font-weight:600}
+.owned span{font-size:16px;color:var(--muted)}
 .note{font-size:18px}
 .note-s{font-size:16px;color:var(--muted)}
 
@@ -196,7 +203,8 @@ textarea{width:100%;height:120px;background:#0a110c;color:var(--text);border:1px
       <button data-t="set">設定</button>
     </div>
     <div class="pb">
-      <div class="tab on" id="t-up"><div id="upList"></div><div class="sec" id="upOwnedH"></div></div>
+      <div class="tab on" id="t-up"><div id="upList"></div>
+        <details id="upOwned"><summary class="sec" id="upOwnedH"></summary><div id="upOwnedList"></div></details></div>
       <div class="tab" id="t-psu">
         <div class="pp note" style="margin-bottom:10px">部品は電力を消費します。容量を超えると<b style="color:var(--bad)">電圧降下</b>で生産効率が落ちます（効率 = (容量/消費)²）。基本容量は USBバスパワー 5V/500mA = 2.5 W。</div>
         <div id="psuList"></div>
@@ -214,7 +222,10 @@ textarea{width:100%;height:120px;background:#0a110c;color:var(--text);border:1px
 /* =========================================================
    データ定義
    ========================================================= */
-const SAVE_KEY = 'kairo-koubou-save-v1';
+// デバッグモード: URL に ?debug を付けると有効。生産・クリックに倍率がかかり、セーブは通常とは別の場所に保存
+const DEBUG = new URLSearchParams(location.search).has('debug');
+let dbgMul = DEBUG ? 1000 : 1;
+const SAVE_KEY = DEBUG ? 'kairo-koubou-debug' : 'kairo-koubou-save-v1';
 const R_GEN = 1.15, R_PSU = 1.18, BASE_WATT = 2.5;
 const SI = ['','k','M','G','T','P','E','Z','Y','R','Q'];
 
@@ -230,8 +241,14 @@ const GENS = [
   {id:'soc',   ref:'U5', name:'SoC',            sub:'64bit 8コア',     cost:5.1e9, prod:2.6e5, watt:160,   desc:'CPUもGPUもNPUも一枚のダイに。'},
   {id:'asic',  ref:'U6', name:'カスタムASIC',   sub:'3nm プロセス',    cost:7.5e10,prod:1.6e6, watt:600,   desc:'テープアウト一発勝負。マスク代は見ないこと。'},
   {id:'qpu',   ref:'QP', name:'量子チップ',     sub:'超伝導 1024qubit',cost:1e12,  prod:1e7,   watt:2500,  desc:'観測するまで、電子は増えているし増えていない。'},
-  {id:'dyson', ref:'Σ',  name:'ダイソン球基板', sub:'恒星直結',        cost:1.4e13,prod:6.5e7, watt:12000, desc:'太陽をまるごと電源に。はんだ付けは宇宙服で。'},
+  {id:'dc',    ref:'DC', name:'データセンター', sub:'ハイパースケール',cost:1.2e13,prod:7e7,   watt:12000, desc:'サーバー10万台。空調の音で会話が聞こえない。'},
+  {id:'planet',ref:'PL', name:'惑星コンピュータ',sub:'全球回路網',      cost:1.4e14,prod:5.1e8, watt:55000, desc:'地表をまるごと基板に。大陸プレートが動くので配線は伸縮式。'},
+  {id:'dyson', ref:'Σ',  name:'ダイソン球基板', sub:'恒星直結',        cost:1.6e15,prod:3.7e9, watt:2.5e5, desc:'太陽をまるごと電源に。はんだ付けは宇宙服で。'},
+  {id:'mbrain',ref:'MB', name:'マトリョーシカ脳',sub:'入れ子ダイソン球',cost:1.8e16,prod:2.7e10,watt:1.1e6, desc:'恒星を何重にも包んだ計算機。排熱は外側の殻にお任せ。'},
+  {id:'univ',  ref:'Ω',  name:'宇宙シミュレータ',sub:'全素粒子エミュ',  cost:2.1e17,prod:2e11,  watt:5e6,   desc:'この宇宙も、たぶん誰かの基板の上で動いている。'},
 ];
+// 部品の並び順はセーブの配列・強化ID・実績IDに使われる。genIds を持たない旧セーブはこの並び（v1: 12種）として読む
+const LEGACY_GEN_IDS = ['res','led','cap','tr','ic555','opamp','mcu','fpga','soc','asic','qpu','dyson'];
 
 const PSUS = [
   {name:'単3乾電池',       sub:'1.5V アルカリ',   cost:50,    watt:1,     abbr:'AA'},
@@ -258,7 +275,11 @@ const TIER_NAMES = {
   soc:  ['big.LITTLE','NPU内蔵','チップレット','3D積層','裏面電源供給'],
   asic: ['EUV露光','GAA構造','歩留まり改善','マルチダイ','オングストローム世代'],
   qpu:  ['量子エラー訂正','希釈冷凍機','論理量子ビット','量子超越','量子インターネット'],
+  dc:   ['液浸冷却','ラック間光配線','自前発電所','海底データセンター','極地データセンター'],
+  planet:['大陸間超伝導網','海底ケーブル総張り替え','衛星コンステレーション','軌道エレベータ配線','惑星コア地熱給電'],
   dyson:['恒星風シールド','ダイソンスウォーム','銀河規模配線','ワームホール配線','熱的死対策'],
+  mbrain:['多層シェル化','排熱リサイクル','恒星リフティング','ブラックホール冷却','思考する恒星'],
+  univ: ['量子もつれバス','時空メッシュ配線','真空エネルギー給電','並行宇宙ミラー','ビッグバン再起動'],
 };
 
 const UPS = [];
@@ -272,15 +293,16 @@ GENS.forEach((g, i) => {
 [['温調はんだごて',100,'click'],['フラックス',800,'click'],['こて先 C型',8000,'click'],
  ['はんだ吸取線',1e5,'pct'],['ホットエアリワーク',1e7,'pct'],['リフロー炉',1e9,'pct'],
  ['チップマウンタ',1e11,'pct'],['全自動実装ライン',1e13,'pct'],['ナノロボット実装',1e15,'pct']
-].forEach(([nm,c,t],k) => UPS.push({id:`c${k}`, name:nm, cost:c, type:t, mult:2, pct:0.01,
+].forEach(([nm,c,t],k) => UPS.push({id:`c${k}`, name:nm, cost:c, type:t, mult:2, pct:0.01, lv: t === 'click' ? k + 1 : k - 2,
   desc: t==='click' ? 'クリックの基本値 ×2' : 'クリック時、毎秒生産量の1%を追加獲得',
   unlock:() => S.earnedRun >= c*0.3}));
 [['デジタルテスター',5e3],['オシロスコープ',5e5],['ロジックアナライザ',5e7],['スペクトラムアナライザ',5e9],
- ['ネットワークアナライザ',5e11],['クリーンルーム',5e13],['半導体パラメータアナライザ',5e15],['電子顕微鏡',5e17]
-].forEach(([nm,c],k) => UPS.push({id:`a${k}`, name:nm, cost:c, type:'global', mult:1.5,
+ ['ネットワークアナライザ',5e11],['クリーンルーム',5e13],['半導体パラメータアナライザ',5e15],['電子顕微鏡',5e17],
+ ['重力波望遠鏡',5e19],['ニュートリノ検出器',5e21],['宇宙背景放射マッパー',5e23]
+].forEach(([nm,c],k) => UPS.push({id:`a${k}`, name:nm, cost:c, type:'global', mult:1.5, lv:k + 1,
   desc:'全部品の生産量 ×1.5', unlock:() => S.earnedRun >= c*0.3}));
 [['デカップリングコンデンサ',1500,1.5],['スイッチング電源化',2e4,2],['同期整流',2e7,2],['GaNパワー段',2e10,2],['超伝導送電線',2e13,2]
-].forEach(([nm,c,m],k) => UPS.push({id:`p${k}`, name:nm, cost:c, type:'psu', mult:m,
+].forEach(([nm,c,m],k) => UPS.push({id:`p${k}`, name:nm, cost:c, type:'psu', mult:m, lv:k + 1,
   desc:`電源容量 ×${m}`, unlock:() => S.earnedRun >= c*0.3}));
 
 const ACH = [];
@@ -299,7 +321,8 @@ GENS.forEach((g,i) => {
 [[1,'ジャンク漁り'],[10,'ジャンク屋の常連'],[50,'ジャンクの目利き']
 ].forEach(([v,n],k) => ACH.push({id:`j${k}`, name:n, desc:`ジャンク箱を${v}個開ける`, test:() => S.junk >= v}));
 [[10,'電源強化'],[50,'電力会社']].forEach(([v,n],k) => ACH.push({id:`s${k}`, name:n, desc:`電源を合計${v}台設置`, test:() => S.psus.reduce((a,b)=>a+b,0) >= v}));
-[[10,'改造好き'],[50,'アップグレード沼'],[100,'魔改造']].forEach(([v,n],k) => ACH.push({id:`u${k}`, name:n, desc:`強化を${v}個購入`, test:() => Object.keys(S.ups).length >= v}));
+[[10,'改造好き'],[50,'アップグレード沼'],[UPS.length,'魔改造']].forEach(([v,n],k) => ACH.push({id:`u${k}`, name:n,
+  desc: v === UPS.length ? `強化をすべて（${v}個）購入` : `強化を${v}個購入`, test:() => UPS.filter(u => S.ups[u.id]).length >= v}));
 [[1,'量産化'],[5,'量産ライン'],[25,'世界の工場']].forEach(([v,n],k) => ACH.push({id:`x${k}`, name:n, desc:`量産化を${v}回実行`, test:() => S.prestiges >= v}));
 ACH.push({id:'smoke', name:'マジックスモーク', desc:'電圧降下で効率50%未満に', test:() => S.smoked});
 
@@ -357,7 +380,7 @@ const NEWS = [
   '基板の裏表を間違えて発注。ICのフットプリントが鏡写しに',
   '「シルクの向きは確認しましたか？」— 発注後に聞かれても',
   '部品表に載っていない部品が1個余った。怖い',
-  '部品が1個足りない。しかも送料無料ラインにちょうど届かない額',
+  'テスターを電流レンジのまま電圧を測り、ヒューズが飛ぶ',
   '通販の「在庫あり」、カートに入れた瞬間に「取り寄せ」へ',
   '半導体不足で、マイコン単体よりマイコン入りの家電の方が安い',
   '抵抗を「とりあえず10kΩ」で済ませる人、意外と多い',
@@ -442,7 +465,7 @@ function defaults() {
     gens:GENS.map(()=>0), psus:PSUS.map(()=>0), ups:{}, ach:{},
     patents:0, prestiges:0, junk:0, buffs:[], smoked:false, maxEps:0,
     start:Date.now(), runStart:Date.now(), last:Date.now(),
-    buyAmt:'1', notation:'si', fx:true, tab:'up'};
+    buyAmt:'1', notation:'si', fx:true, tab:'up', genIds:GENS.map(g => g.id)};
 }
 let S = defaults();
 let D = {eps:0, raw:0, draw:0, cap:BASE_WATT, eff:1, clickVal:1, per:GENS.map(()=>0), gm:GENS.map(()=>1), wm:GENS.map(()=>1), glob:1, bp:1, bc:1, psuM:1, unitClick:1};
@@ -463,10 +486,13 @@ function fmt(n, small) {
     if (small && n !== Math.floor(n) && n < 100) return n < 10 ? String(+n.toFixed(2)) : n.toFixed(1);
     return String(Math.floor(n));
   }
-  const e3 = Math.floor(Math.log10(n)/3);
+  let e3 = Math.floor(Math.log10(n)/3);
+  // 丸めた後の値で桁数を決める（99.996k → 100.00k ではなく 100.0k、999.95M → 1000.0M ではなく 1.00G）
+  const f = x => { const s = x.toFixed(2); return +s >= 100 ? x.toFixed(1) : s; };
+  let s = f(n / Math.pow(10, e3*3));
+  if (+s >= 1000) { e3++; s = f(n / Math.pow(10, e3*3)); }
   if (S.notation === 'sci' || e3 >= SI.length) return n.toExponential(2).replace('e+','e');
-  const v = n / Math.pow(10, e3*3);
-  return (v >= 100 ? v.toFixed(1) : v.toFixed(2)) + SI[e3];
+  return s + SI[e3];
 }
 function fmtW(w) {
   if (w === 0) return '0 W';
@@ -495,7 +521,7 @@ function derive() {
     else if (u.type === 'psu') psuM *= u.mult;
   }
   const achN = Object.keys(S.ach).length;
-  glob *= (1 + 0.01*achN) * (1 + 0.05*S.patents);
+  glob *= (1 + 0.01*achN) * (1 + 0.05*S.patents) * dbgMul;
   const now = Date.now();
   let bp = 1, bc = 1;
   for (const b of S.buffs) if (b.until > now) { if (b.type === 'prod') bp *= b.mult; else bc *= b.mult; }
@@ -510,7 +536,7 @@ function derive() {
   cap *= psuM;
   const eff = draw <= cap ? 1 : Math.pow(cap/draw, 2);
   const eps = raw * eff;
-  const unitClick = click * (1 + 0.05*S.patents);
+  const unitClick = click * (1 + 0.05*S.patents) * dbgMul;
   D = {gm, wm, per, raw, draw, cap, eff, eps, glob, bp, bc, psuM, pct, unitClick,
        clickVal: (unitClick + eps*pct) * bc};
 }
@@ -542,9 +568,12 @@ function buyPsu(i) {
 }
 function buyUp(id) {
   const u = UPS.find(x => x.id === id);
-  if (!u || S.ups[id] || S.e < u.cost) return;
+  if (!u) return;
+  if (S.ups[id]) { toast(`「${u.name}」は購入済みです`, '', '一覧を更新しました'); upKey = null; updateUI(); return; }
+  if (S.e < u.cost) { toast(`「${u.name}」には e⁻ が足りません`, '', `あと ${fmt(u.cost - S.e)} e⁻`); return; }
   S.e -= u.cost; S.ups[id] = 1;
-  derive(); boardDirty = true; upKey = ''; updateUI();
+  derive(); boardDirty = true; upKey = null; updateUI();
+  toast(`「${u.name}」を購入しました`, 'gold', `${u.desc}（-${fmt(u.cost)} e⁻）`);
 }
 function revealed(i) { return i === 0 || cnt(i) > 0 || cnt(i-1) > 0 || S.earnedAll >= GENS[i].cost; }
 
@@ -717,6 +746,31 @@ function drawComp(c, id, x, y, s, lit) {
       c.beginPath(); for (let k = 0; k < 6; k++) { const a = k*Math.PI/3; c.moveTo(Math.cos(a)*u*.26, Math.sin(a)*u*.26); c.lineTo(Math.cos(a)*u*.78, Math.sin(a)*u*.78); } c.stroke();
       c.fillStyle = lit ? '#bff6ff' : '#567'; c.beginPath(); c.arc(0, 0, u*.12, 0, 7); c.fill();
       break; }
+    case 'dc': {
+      // サーバーラック: 黒い筐体に段ごとのLED
+      c.fillStyle = '#2a2e33'; c.fillRect(-u*.55, -u*.85, u*1.1, u*1.7);
+      c.strokeStyle = '#5c646d'; c.lineWidth = Math.max(1, s*0.03); c.strokeRect(-u*.55, -u*.85, u*1.1, u*1.7);
+      for (let k = 0; k < 5; k++) {
+        const y = -u*.72 + k*u*.32;
+        c.fillStyle = '#16191c'; c.fillRect(-u*.45, y, u*.9, u*.24);
+        c.fillStyle = lit ? (k%2 ? '#4ade80' : '#5ee7ff') : '#2f4a3a';
+        c.fillRect(u*.22, y + u*.08, u*.07, u*.07); c.fillRect(u*.33, y + u*.08, u*.07, u*.07);
+      }
+      break; }
+    case 'planet': {
+      // 地球に金色の配線（緯線・経線）
+      const g = c.createRadialGradient(-u*.25, -u*.25, u*.1, 0, 0, u*.75);
+      g.addColorStop(0, '#5fb3ff'); g.addColorStop(1, '#14407a');
+      c.fillStyle = g; c.beginPath(); c.arc(0, 0, u*.72, 0, 7); c.fill();
+      c.fillStyle = '#3f8f4f';
+      c.beginPath(); c.ellipse(-u*.22, -u*.12, u*.25, u*.17, 0.5, 0, 7); c.fill();
+      c.beginPath(); c.ellipse(u*.28, u*.24, u*.18, u*.12, -0.3, 0, 7); c.fill();
+      c.save(); c.beginPath(); c.arc(0, 0, u*.72, 0, 7); c.clip();
+      c.strokeStyle = lit ? '#ffd76a' : '#a8873a'; c.lineWidth = Math.max(1, s*0.025);
+      for (const r of [-.4, 0, .4]) { c.beginPath(); c.moveTo(-u, u*r); c.lineTo(u, u*r); c.stroke(); }
+      for (const w of [.3, .6]) { c.beginPath(); c.ellipse(0, 0, u*w, u*.72, 0, 0, 7); c.stroke(); }
+      c.restore();
+      break; }
     case 'dyson': {
       if (lit) { c.shadowColor = '#ffb020'; c.shadowBlur = s*0.5; }
       const g = c.createRadialGradient(0,0,u*.05,0,0,u*.5);
@@ -724,6 +778,26 @@ function drawComp(c, id, x, y, s, lit) {
       c.fillStyle = g; c.beginPath(); c.arc(0, 0, u*.45, 0, 7); c.fill();
       c.shadowBlur = 0; c.strokeStyle = '#c9d2da'; c.lineWidth = Math.max(1, s*0.04);
       c.beginPath(); c.ellipse(0, 0, u*.9, u*.3, -0.4, 0, 7); c.stroke();
+      break; }
+    case 'mbrain': {
+      // 中心の恒星を、途切れた殻が3重に囲む
+      if (lit) { c.shadowColor = '#ff8a3a'; c.shadowBlur = s*0.4; }
+      c.fillStyle = '#ffd27a'; c.beginPath(); c.arc(0, 0, u*.2, 0, 7); c.fill();
+      c.shadowBlur = 0; c.lineWidth = Math.max(1, s*0.06);
+      [[.42,'#d8b04a'],[.62,'#9aa4b0'],[.82,'#5f6b78']].forEach(([r,col],k) => {
+        c.strokeStyle = col; c.beginPath(); c.arc(0, 0, u*r, k*1.1, k*1.1 + Math.PI*1.55); c.stroke(); });
+      break; }
+    case 'univ': {
+      // 暗い円の中に、2本腕の渦巻銀河
+      c.fillStyle = '#0c0a24'; c.beginPath(); c.arc(0, 0, u*.82, 0, 7); c.fill();
+      c.strokeStyle = '#8f7cff'; c.lineWidth = Math.max(1, s*0.04); c.stroke();
+      if (lit) { c.shadowColor = '#bfa6ff'; c.shadowBlur = s*0.2; }
+      for (let k = 0; k < 36; k++) {
+        const a = k*0.32 + (k%2)*Math.PI, r = u*(0.06 + k*0.019);
+        c.fillStyle = k%3 ? '#cdbcff' : '#7ee8ff';
+        c.beginPath(); c.arc(Math.cos(a)*r, Math.sin(a)*r, s*0.025, 0, 7); c.fill();
+      }
+      c.shadowBlur = 0; c.fillStyle = '#fff6d8'; c.beginPath(); c.arc(0, 0, u*.08, 0, 7); c.fill();
       break; }
   }
   c.restore();
@@ -833,8 +907,9 @@ const rand = (a, b) => a + Math.random()*(b - a);
 let nextJunk = Date.now() + rand(40e3, 90e3), junkEl = null, junkUntil = 0;
 function junkTick(now) {
   if (!junkEl && now >= nextJunk) spawnJunk();
-  if (junkEl && now > junkUntil) { junkEl.remove(); junkEl = null; nextJunk = now + rand(60e3, 150e3); }
+  if (junkEl && now > junkUntil) { junkEl.remove(); junkEl = null; nextJunk = now + junkGap(); }
 }
+function junkGap() { return DEBUG ? rand(3e3, 6e3) : rand(60e3, 150e3); }
 function spawnJunk() {
   junkEl = document.createElement('button');
   junkEl.className = 'junk'; junkEl.title = 'ジャンク箱'; junkEl.innerHTML = '<span>JUNK</span>';
@@ -860,7 +935,7 @@ function openJunk(e) {
   }
   const rect = junkEl.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
   sparkAt(rect.left - wr.left + 44, rect.top - wr.top + 32);
-  junkEl.remove(); junkEl = null; nextJunk = Date.now() + rand(60e3, 150e3);
+  junkEl.remove(); junkEl = null; nextJunk = Date.now() + junkGap();
   derive(); updateUI();
 }
 
@@ -944,11 +1019,11 @@ function updateShop() {
   setTxt(dot, '!');
 }
 
-let upKey = '';
+let upKey = null;
 function upBadge(u) {
   if (u.type === 'gen') return `<canvas class="ico" width="96" height="96" data-g="${GENS[u.gen].id}"></canvas>`;
   const m = {click:['b-click','IRON'], pct:['b-click','IRON+'], global:['b-global','TEST'], psu:['b-psu','PSU'], watt:['b-watt','LOW-P']}[u.type];
-  return `<div class="badge ${m[0]}">${m[1]}</div>`;
+  return `<div class="badge ${m[0]}"><div>${m[1]}${u.lv ? `<small>Lv${u.lv}</small>` : ''}</div></div>`;
 }
 function updateUps() {
   const list = UPS.filter(u => !S.ups[u.id] && u.unlock()).sort((a,b) => a.cost - b.cost);
@@ -966,15 +1041,39 @@ function updateUps() {
       if (u.type === 'gen') drawIcon(r.ico, GENS[u.gen].id);
       el.appendChild(r.b);
     }
-    setTxt($('#upOwnedH'), `購入済み: ${Object.keys(S.ups).length} / ${UPS.length}`);
   }
   let can = 0;
   for (const b of el.children) {
     if (!b.dataset.cost) continue;
-    const ok = S.e >= +b.dataset.cost; if (ok) can++;
+    const cost = +b.dataset.cost, ok = S.e >= cost; if (ok) can++;
     setCls(b, 'can', ok); setCls(b, 'cant', !ok);
+    setTxt(b.querySelector('.cost'), ok ? `${fmt(cost)} e⁻` : `${fmt(cost)} e⁻（あと ${fmt(cost - S.e)}）`);
   }
   const dot = $('#upDot'); dot.hidden = !can; setTxt(dot, String(can));
+  updateOwned();
+}
+
+// 購入済みの強化（新しい順）
+let ownedKey = null;
+function updateOwned() {
+  const ids = Object.keys(S.ups).filter(id => S.ups[id]);
+  const key = ids.join() + '|' + S.notation;
+  if (key === ownedKey) return;
+  ownedKey = key;
+  setTxt($('#upOwnedH'), `購入済みの強化 ${ids.length} / ${UPS.length}（クリックで開閉）`);
+  const list = $('#upOwnedList');
+  list.innerHTML = '';
+  if (!ids.length) { list.innerHTML = '<div class="empty">まだありません</div>'; return; }
+  for (const id of ids.reverse()) {
+    const u = UPS.find(x => x.id === id);
+    if (!u) continue;
+    const d = document.createElement('div');
+    d.className = 'owned';
+    d.innerHTML = '<b></b><span></span>';
+    d.firstChild.textContent = u.name;
+    d.lastChild.textContent = `${u.desc} · ${fmt(u.cost)} e⁻`;
+    list.appendChild(d);
+  }
 }
 
 function updateHeader() {
@@ -1016,23 +1115,34 @@ function patentGain() { return Math.max(0, Math.floor(Math.cbrt(S.earnedAll / 1e
 function updatePre() {
   const g = patentGain();
   const next = Math.pow(S.patents + g + 1, 3) * 1e9;
-  const html = `<div class="pp">
-    <div>基板を<b>量産化</b>すると、部品・電源・強化・電子はすべてリセットされます。<br>代わりに累計獲得量に応じて<b style="color:var(--gold)">特許</b>を取得。特許1件につき全生産量とクリックが <b>+5%</b>（永続）。</div>
-    <div style="margin-top:10px">保有特許 <span class="n">${S.patents}</span>　→　今量産すると <span class="n" style="color:var(--ok)">+${g}</span></div>
-    <div class="note-s">次の特許まで: 累計 ${fmt(next)} e⁻（現在 ${fmt(S.earnedAll)}）</div>
-    <div class="row"><button class="btn" id="preBtn" ${g < 1 ? 'disabled' : ''}>量産化する（REV.${String.fromCharCode(66 + Math.min(S.prestiges, 24))} へ）</button></div>
-    <div class="note-s">量産化回数: ${S.prestiges}　実績と特許は引き継がれます。</div></div>`;
   const box = $('#preBox');
-  if (box.dataset.h !== html) { box.innerHTML = html; box.dataset.h = html; $('#preBtn').onclick = prestige; }
+  // 骨組みは1回だけ作り、以降は文字と disabled だけ更新する。
+  // （毎回 innerHTML で作り直すと、押している最中にボタンが差し替わってクリックが無効になる）
+  if (!box.dataset.built) {
+    box.dataset.built = 1;
+    box.innerHTML = `<div class="pp">
+    <div>基板を<b>量産化</b>すると、部品・電源・強化・電子はすべてリセットされます。<br>代わりに累計獲得量に応じて<b style="color:var(--gold)">特許</b>を取得。特許1件につき全生産量とクリックが <b>+5%</b>（永続）。</div>
+    <div style="margin-top:10px">保有特許 <span class="n" id="prePat"></span>　→　今量産すると <span class="n" style="color:var(--ok)" id="preGain"></span></div>
+    <div class="note-s" id="preNext"></div>
+    <div class="row"><button class="btn" id="preBtn"></button></div>
+    <div class="note-s" id="preCnt"></div></div>`;
+    $('#preBtn').onclick = prestige;
+  }
+  setTxt($('#prePat'), fmt(S.patents));
+  setTxt($('#preGain'), '+' + fmt(g));
+  setTxt($('#preNext'), `次の特許まで: あと ${fmt(Math.max(0, next - S.earnedAll))} e⁻（累計 ${fmt(S.earnedAll)}）`);
+  setTxt($('#preBtn'), `量産化する（REV.${String.fromCharCode(66 + Math.min(S.prestiges, 24))} へ）`);
+  if ($('#preBtn').disabled !== (g < 1)) $('#preBtn').disabled = g < 1;
+  setTxt($('#preCnt'), `量産化回数: ${S.prestiges}　実績と特許は引き継がれます。`);
 }
 function prestige() {
   const g = patentGain();
   if (g < 1) return;
   if (!confirm(`量産化して特許を ${g} 件取得します。\n部品・電源・強化・電子はリセットされます。よろしいですか？`)) return;
   const keep = S, n = defaults();
-  for (const k of ['earnedAll','clicksAll','ach','junk','smoked','maxEps','start','notation','fx','buyAmt','tab','newsBag','newsPos']) n[k] = keep[k];
+  for (const k of ['earnedAll','clicksAll','ach','junk','smoked','maxEps','start','notation','fx','buyAmt','tab','newsBag','newsPos','newsV']) n[k] = keep[k];
   n.patents = keep.patents + g; n.prestiges = keep.prestiges + 1;
-  S = n; upKey = ''; boardDirty = true;
+  S = n; upKey = null; boardDirty = true;
   derive(); save(); updateUI();
   toast(`量産化完了！ 特許 +${g}`, 'gold', `全生産量 +${S.patents*5}%`);
 }
@@ -1050,8 +1160,17 @@ function updateSet() {
       <div class="row"><button class="btn ghost" id="saveBtn">今すぐ保存</button><button class="btn ghost" id="expBtn">エクスポート</button><button class="btn ghost" id="impBtn">インポート</button></div>
       <textarea id="saveTxt" placeholder="エクスポートしたデータがここに出ます。インポートするときはここに貼り付けてから「インポート」"></textarea>
       <div class="row"><button class="btn danger" id="resetBtn">全データ消去</button></div>
-      <div class="note-s" style="margin-top:10px">自動保存: 15秒ごと（ブラウザの localStorage）。留守中も50%の効率で生産します（最大24時間）。</div>`;
-    $('#notBtn').onclick = () => { S.notation = S.notation === 'si' ? 'sci' : 'si'; boardDirty = true; upKey = ''; updateUI(); };
+      <div class="note-s" style="margin-top:10px">自動保存: 15秒ごと（ブラウザの localStorage）。留守中も50%の効率で生産します（最大24時間）。</div>
+      ${DEBUG ? `<div class="sec" style="color:var(--warn)">デバッグ（?debug 起動中・セーブは通常と別）</div>
+      <div class="row"><button class="btn ghost" id="dbgMulBtn"></button><button class="btn ghost" id="dbgGiveBtn">電子 +所持×1万</button><button class="btn ghost" id="dbgJunkBtn">ジャンク箱を出す</button><button class="btn ghost" id="dbgClickBtn">はんだ付け +1000回</button></div>` : ''}`;
+    if (DEBUG) {
+      const muls = [1, 1e3, 1e6];
+      $('#dbgMulBtn').onclick = () => { dbgMul = muls[(muls.indexOf(dbgMul) + 1) % muls.length]; derive(); updateUI(); };
+      $('#dbgGiveBtn').onclick = () => { gain(Math.max(1e4, S.e*1e4)); updateUI(); };
+      $('#dbgJunkBtn').onclick = () => { if (!junkEl) spawnJunk(); };
+      $('#dbgClickBtn').onclick = () => { S.clicks += 1000; S.clicksAll += 1000; $('#clickHint').style.display = 'none'; updateUI(); };
+    }
+    $('#notBtn').onclick = () => { S.notation = S.notation === 'si' ? 'sci' : 'si'; boardDirty = true; upKey = null; updateUI(); };
     $('#fxBtn').onclick = () => { S.fx = !S.fx; updateUI(); };
     $('#saveBtn').onclick = () => { save(); toast('保存しました'); };
     $('#expBtn').onclick = () => { $('#saveTxt').value = btoa(unescape(encodeURIComponent(JSON.stringify(S)))); $('#saveTxt').select(); };
@@ -1061,11 +1180,12 @@ function updateSet() {
     };
     $('#resetBtn').onclick = () => {
       if (!confirm('本当に全データを消去しますか？（取り消せません）')) return;
-      S = defaults(); upKey = ''; boardDirty = true; save(); location.reload();
+      S = defaults(); upKey = null; boardDirty = true; save(); location.reload();
     };
   }
   setTxt($('#notBtn'), '数値表記: ' + (S.notation === 'si' ? 'SI接頭辞 (k, M, G…)' : '指数 (1.23e9)'));
   setTxt($('#fxBtn'), 'エフェクト: ' + (S.fx ? 'ON' : 'OFF'));
+  if (DEBUG) setTxt($('#dbgMulBtn'), `倍率 ×${fmt(dbgMul)}（押すと切替）`);
   const now = Date.now();
   const kv = [['累計獲得（全期間）', fmt(S.earnedAll)], ['今回の獲得', fmt(S.earnedRun)], ['最高 e⁻/s', fmt(S.maxEps, true)],
     ['はんだ付け回数', fmt(S.clicksAll)], ['開けたジャンク箱', fmt(S.junk)], ['部品総数', fmt(S.gens.reduce((a,b)=>a+b,0))],
@@ -1102,17 +1222,36 @@ function checkAch() {
     toast(`実績解除: ${a.name}`, 'ach', a.desc + '（生産量 +1%）');
   }
 }
-// シャッフルバッグ: 全ニュースを一巡するまで同じものは出さない。位置はセーブに残すのでリロードしても重複しない
-function shuffledNews(avoidFirst) {
-  const a = NEWS.map((_,i) => i);
-  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*(i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
-  if (a[0] === avoidFirst) [a[0], a[a.length-1]] = [a[a.length-1], a[0]];
-  return a;
+// シャッフルバッグ: 全ニュースを一巡するまで同じものは出さない。位置はセーブに残すのでリロードしても重複しない。
+// さらに同じキーワード（話題）を含むニュースは直近 NEWS_GAP 本の中に並べない（似た話が続くと「また同じ」に見えるため）
+const NEWS_VER = 2;
+const NEWS_GAP = 15;
+const NEWS_TOPICS = ['Lチカ','データシート','ディスコン','パスコン','プル','I²C','静電気','オシロ','ブレッドボード','接触不良',
+  '送料','足りない','余','発注','膨らん','量子','FPGA','直せます','動かない','秋葉原','LED','GND','はんだ','ジャンク','眠',
+  'コンデンサ','抵抗','マイコン','電源','ケース','発振','リセット','雑誌','引き出し','ルーペ','老眼','テスター','基板'];
+const newsTopics = NEWS.map(t => NEWS_TOPICS.filter(k => t.includes(k)));
+function shuffledNews(prev) {
+  const pool = NEWS.map((_,i) => i);
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*(i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  const out = [], recent = prev.slice(-NEWS_GAP);
+  while (pool.length) {
+    const used = new Set(recent.flatMap(i => newsTopics[i]));
+    let best = 0, bestScore = Infinity;
+    for (let k = 0; k < pool.length; k++) {
+      const sc = newsTopics[pool[k]].filter(t => used.has(t)).length + (recent.includes(pool[k]) ? 100 : 0);
+      if (sc < bestScore) { best = k; bestScore = sc; if (sc === 0) break; }
+    }
+    const pick = pool.splice(best, 1)[0];
+    out.push(pick); recent.push(pick);
+    if (recent.length > NEWS_GAP) recent.shift();
+  }
+  return out;
 }
 function nextNews() {
   const bag = S.newsBag;
-  if (!Array.isArray(bag) || bag.length !== NEWS.length || !(S.newsPos >= 0)) { S.newsBag = shuffledNews(-1); S.newsPos = 0; }
-  else if (S.newsPos >= bag.length) { S.newsBag = shuffledNews(bag[bag.length-1]); S.newsPos = 0; }
+  if (S.newsV !== NEWS_VER || !Array.isArray(bag) || bag.length !== NEWS.length || !(S.newsPos >= 0)) {
+    S.newsBag = shuffledNews([]); S.newsPos = 0; S.newsV = NEWS_VER;
+  } else if (S.newsPos >= bag.length) { S.newsBag = shuffledNews(bag); S.newsPos = 0; }
   const idx = S.newsBag[S.newsPos++];
   const m = $('#news');
   m.style.opacity = 0;
@@ -1129,10 +1268,25 @@ function save() {
 function load(o) {
   const d = defaults();
   S = Object.assign(d, o);
-  S.gens = GENS.map((_,i) => +(o.gens && o.gens[i]) || 0);
+  // セーブ時の部品の並び（genIds）から今の並びへ、個数・強化ID（g0_1, w0）・実績ID（o0_50）を付け替える
+  const ids = Array.isArray(o.genIds) ? o.genIds : LEGACY_GEN_IDS;
+  const remap = i => GENS.findIndex(g => g.id === ids[i]);
+  const rekey = obj => {
+    const r = {};
+    for (const k in obj || {}) {
+      const m = k.match(/^([gwo])(\d+)(_\d+)?$/);
+      if (!m) { r[k] = obj[k]; continue; }
+      const j = remap(+m[2]);
+      if (j >= 0) r[m[1] + j + (m[3] || '')] = obj[k];
+    }
+    return r;
+  };
+  S.gens = GENS.map(() => 0);
+  (Array.isArray(o.gens) ? o.gens : []).forEach((n, i) => { const j = remap(i); if (j >= 0) S.gens[j] = +n || 0; });
+  S.genIds = GENS.map(g => g.id);
   S.psus = PSUS.map((_,i) => +(o.psus && o.psus[i]) || 0);
-  S.ups = o.ups || {}; S.ach = o.ach || {}; S.buffs = Array.isArray(o.buffs) ? o.buffs : [];
-  upKey = ''; boardDirty = true;
+  S.ups = rekey(o.ups); S.ach = rekey(o.ach); S.buffs = Array.isArray(o.buffs) ? o.buffs : [];
+  upKey = null; boardDirty = true;
   derive();
 }
 function boot() {
@@ -1151,6 +1305,7 @@ function boot() {
     } catch (e) { S = defaults(); }
   }
   if (S.clicksAll >= 5) $('#clickHint').style.display = 'none';
+  if (DEBUG) { document.title = '[DEBUG] ' + document.title; $('.logo small').textContent = 'DEBUG MODE · ?debug'; $('.logo small').style.color = 'var(--warn)'; nextJunk = Date.now() + junkGap(); }
   buildShop();
   layoutBoard();
   derive();
